@@ -1,0 +1,9 @@
+templates:
+  - name: "pt-to-onnx-default"
+    display_name: "PT to ONNX Default"
+    source_format: "pt"
+    target_format: "onnx"
+    defaults:
+      opset: 17
+      dynamic: false
+

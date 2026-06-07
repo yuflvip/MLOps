@@ -1,0 +1,15 @@
+templates:
+  - name: "yolo-default"
+    display_name: "YOLO Default"
+    queue: "queue_train_gpu"
+    entrypoint: "python train.py"
+    defaults:
+      epochs: 100
+      batch_size: 16
+  - name: "default-training"
+    display_name: "Default Training"
+    queue: "training-default"
+    entrypoint: "python train.py"
+    defaults:
+      epochs: 100
+      batch_size: 16

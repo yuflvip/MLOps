@@ -1,0 +1,28 @@
+app:
+  name: "mlops-backend"
+  debug: false
+  host: "0.0.0.0"
+  port: 18087
+  root_path: ""
+  docs_url: "/docs"
+  openapi_url: "/openapi.json"
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s %(levelname)s [%(name)s] %(message)s"
+
+database:
+  url: "sqlite+pysqlite:///./data/alembic_autogen.db"
+
+templates:
+  training: "./config/training-templates.yaml"
+  conversion: "./config/conversion-templates.yaml"
+
+clearml:
+  mode: "stub"
+  api_base_url: "http://127.0.0.1:8008"
+  timeout_seconds: 30
+
+scheduler:
+  enabled: true
+  timezone: "UTC"
