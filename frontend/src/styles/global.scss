@@ -1,0 +1,77 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #app {
+  height: 100%;
+}
+
+body {
+  font-family: $font-family;
+  background: radial-gradient(1200px 800px at 70% -10%, #13284f 0%, $bg 55%) fixed, $bg;
+  color: $txt;
+  overflow: hidden;
+}
+
+// Grid overlay
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(80, 140, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(80, 140, 255, 0.04) 1px, transparent 1px);
+  background-size: 46px 46px;
+}
+
+#app {
+  position: relative;
+  z-index: 1;
+}
+
+// Scrollbar
+* {
+  scrollbar-width: thin;
+  scrollbar-color: $scroll-thumb $scroll-track;
+}
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-track {
+  background: $scroll-track;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: $scroll-thumb;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: $scroll-hover;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+// Utility classes
+.font-mono {
+  font-family: $font-mono;
+}
+
+.text-cyan {
+  color: $cyan;
+}
+
+.text-muted {
+  color: $muted;
+}
+
+.text-secondary {
+  color: $txt2;
+}

@@ -1,0 +1,137 @@
+// Element Plus component overrides for dark theme
+
+// Input
+.el-input__wrapper {
+  background-color: #08152e;
+  box-shadow: 0 0 0 1px var(--line2) inset;
+}
+.el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--line2) inset;
+}
+.el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1px var(--cyan) inset;
+}
+
+// Select dropdown
+.el-select-dropdown {
+  background-color: var(--panel);
+  border-color: var(--line2);
+}
+.el-select-dropdown__item.is-hovering {
+  background-color: var(--panel2);
+}
+.el-select-dropdown__item.is-selected {
+  color: var(--cyan);
+}
+
+// Table
+.el-table {
+  --el-table-bg-color: var(--panel);
+  --el-table-tr-bg-color: var(--panel);
+  --el-table-header-bg-color: var(--panel2);
+  --el-table-row-hover-bg-color: rgba(40, 224, 224, 0.06);
+  --el-table-border-color: var(--line);
+  --el-table-text-color: var(--txt);
+  --el-table-header-text-color: var(--txt2);
+}
+
+// Card
+.el-card {
+  background: linear-gradient(180deg, var(--panel), rgba(10, 22, 48, 0.6));
+  border-color: var(--line);
+  border-radius: 14px;
+}
+
+// Dialog
+.el-dialog {
+  background-color: var(--panel);
+  border: 1px solid var(--line2);
+  border-radius: 14px;
+}
+.el-dialog__header {
+  border-bottom: 1px solid var(--line);
+}
+.el-dialog__title {
+  color: var(--txt);
+}
+
+// Drawer
+.el-drawer {
+  background-color: var(--panel);
+}
+.el-drawer__header {
+  color: var(--txt);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 0;
+  padding-bottom: 16px;
+}
+
+// Pagination
+.el-pagination {
+  --el-pagination-bg-color: transparent;
+  --el-pagination-button-bg-color: var(--panel2);
+  --el-pagination-hover-color: var(--cyan);
+}
+.el-pager li {
+  background-color: var(--panel2) !important;
+  color: var(--txt2) !important;
+}
+.el-pager li.is-active {
+  background-color: var(--blue) !important;
+  color: #fff !important;
+}
+
+// Button primary glow
+.el-button--primary {
+  background: linear-gradient(90deg, var(--blue), var(--teal));
+  border-color: transparent;
+  color: #04122e;
+  font-weight: 700;
+}
+.el-button--primary:hover {
+  filter: brightness(1.1);
+  border-color: transparent;
+  color: #04122e;
+}
+
+// Tag
+.el-tag {
+  border-radius: 6px;
+}
+
+// Loading overlay
+.el-loading-mask {
+  background-color: rgba(7, 14, 34, 0.7);
+}
+
+// Message
+.el-message {
+  background-color: var(--panel2);
+  border-color: var(--line2);
+}
+
+// Form item label
+.el-form-item__label {
+  color: var(--txt2);
+}
+
+// Tabs
+.el-tabs__item.is-active {
+  color: var(--cyan);
+}
+.el-tabs__active-bar {
+  background-color: var(--cyan);
+}
+
+// Descriptions
+.el-descriptions {
+  --el-descriptions-table-border: var(--line);
+}
+.el-descriptions__label {
+  color: var(--txt2) !important;
+  background-color: var(--panel2) !important;
+}
+.el-descriptions__content {
+  color: var(--txt) !important;
+  background-color: var(--panel) !important;
+}

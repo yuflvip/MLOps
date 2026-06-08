@@ -1,1 +1,86 @@
-// Placeholder - will be filled in Task 2
+// TrafficMind-inspired dark theme color system
+// Override Element Plus CSS variables
+// NOTE: SCSS variables use single $ (no --) to avoid Sass private-member convention.
+//       CSS custom properties in :root still use -- prefix as required by CSS.
+
+// Background
+$bg:          #070e22;
+$bg2:         #0b1730;
+$panel:       #0e1d3d;
+$panel2:      #122448;
+
+// Border
+$line:        rgba(80, 140, 255, 0.18);
+$line2:       rgba(80, 140, 255, 0.35);
+
+// Text
+$txt:         #dbe6ff;
+$txt2:        #8aa0cc;
+$muted:       #5f739c;
+
+// Accent
+$cyan:        #28e0e0;
+$blue:        #3b82f6;
+$teal:        #22d3ee;
+
+// Functional
+$green:       #36e08a;
+$amber:       #ffb020;
+$red:         #ff5a6e;
+$purple:      #9b7bff;
+
+// Glow
+$glow:        0 0 18px rgba(40, 224, 224, 0.25);
+
+// Scrollbar
+$scroll-track:   rgba(3, 12, 28, 0.42);
+$scroll-thumb:   rgba(95, 115, 156, 0.42);
+$scroll-hover:   rgba(40, 224, 224, 0.52);
+
+// Font
+$font-family:    "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
+$font-mono:      Consolas, "Courier New", monospace;
+
+// Element Plus variable overrides
+$--el-color-primary: $blue;
+$--el-color-success: $green;
+$--el-color-warning: $amber;
+$--el-color-danger:  $red;
+
+// Forward as CSS custom properties for runtime use
+:root {
+  --bg: #{$bg};
+  --bg2: #{$bg2};
+  --panel: #{$panel};
+  --panel2: #{$panel2};
+  --line: #{$line};
+  --line2: #{$line2};
+  --txt: #{$txt};
+  --txt2: #{$txt2};
+  --muted: #{$muted};
+  --cyan: #{$cyan};
+  --blue: #{$blue};
+  --teal: #{$teal};
+  --green: #{$green};
+  --amber: #{$amber};
+  --red: #{$red};
+  --purple: #{$purple};
+  --glow: #{$glow};
+
+  --el-bg-color: #{$bg};
+  --el-bg-color-page: #{$bg2};
+  --el-bg-color-overlay: #{$panel};
+  --el-border-color: #{$line};
+  --el-border-color-light: #{$line};
+  --el-border-color-lighter: #{$line};
+  --el-border-color-extra-light: #{$line};
+  --el-text-color-primary: #{$txt};
+  --el-text-color-regular: #{$txt2};
+  --el-text-color-secondary: #{$muted};
+  --el-text-color-placeholder: #{$muted};
+  --el-fill-color: #{$panel};
+  --el-fill-color-light: #{$panel2};
+  --el-fill-color-lighter: #{$panel};
+  --el-fill-color-blank: #{$bg2};
+  --el-mask-color: rgba(0, 0, 0, 0.6);
+}
