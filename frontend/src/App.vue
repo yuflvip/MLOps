@@ -1,3 +1,3 @@
 <template>
-  <div class="app-root">MLOps Frontend</div>
+  <router-view />
 </template>
