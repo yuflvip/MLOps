@@ -7,8 +7,11 @@ export const TASK_STATUS_MAP: Record<string, string> = {
   cancelled: '已取消',
 }
 
+/** Element Plus tag type */
+export type ElTagType = 'info' | 'success' | 'danger' | 'warning' | 'primary' | ''
+
 /** Task status to Element Plus tag type */
-export const TASK_STATUS_TAG_TYPE: Record<string, string> = {
+export const TASK_STATUS_TAG_TYPE: Record<string, ElTagType> = {
   queued: 'info',
   running: '',
   succeeded: 'success',
