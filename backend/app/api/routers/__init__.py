@@ -31,6 +31,7 @@ from app.infrastructure.repositories import TaskRepository
 
 
 def install_routers(app: FastAPI, container: ApplicationContainer) -> None:
+    from app.api.routers.clearml import router as clearml_router
     from app.api.routers.conversion import router as conversion_router
     from app.api.routers.system import router as system_router
     from app.api.routers.training import router as training_router
@@ -39,6 +40,7 @@ def install_routers(app: FastAPI, container: ApplicationContainer) -> None:
     api_router.include_router(training_router)
     api_router.include_router(conversion_router)
     api_router.include_router(system_router)
+    api_router.include_router(clearml_router)
 
     api_prefix = container.settings.app.api_prefix
     app.include_router(api_router, prefix=api_prefix)

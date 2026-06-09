@@ -21,6 +21,15 @@ class ClearMLClientProtocol(Protocol):
     def list_agents(self) -> List[Dict[str, Any]]:
         ...
 
+    def get_task_log(
+        self,
+        task: str,
+        batch_size: int = 500,
+        from_timestamp: int | None = None,
+        order: str = "asc",
+    ) -> Dict[str, Any]:
+        ...
+
 
 class StubClearMLClient:
     def __init__(self) -> None:
@@ -45,6 +54,15 @@ class StubClearMLClient:
             {"id": task_id, "status": "queued"}
             for task_id in task_ids
         ]
+
+    def get_task_log(
+        self,
+        task: str,
+        batch_size: int = 500,
+        from_timestamp: int | None = None,
+        order: str = "asc",
+    ) -> Dict[str, Any]:
+        return {"events": [], "returned": 0, "total": 0}
 
 
 class HttpClearMLClient:
@@ -97,6 +115,26 @@ class HttpClearMLClient:
         )
         payload = self._extract_payload(response, "tasks")
         return list(payload if isinstance(payload, list) else [])
+
+    def get_task_log(
+        self,
+        task: str,
+        batch_size: int = 500,
+        from_timestamp: int | None = None,
+        order: str = "asc",
+    ) -> Dict[str, Any]:
+        payload: Dict[str, Any] = {
+            "task": task,
+            "batch_size": batch_size,
+            "order": order,
+        }
+        if from_timestamp is not None:
+            payload["from_timestamp"] = from_timestamp
+        response = self._request("POST", "/events.get_task_log", json=payload)
+        data = response.get("data", response)
+        if not isinstance(data, dict):
+            data = {"events": data}
+        return data
 
     def _build_task_create_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         runtime = _normalize_mapping(payload.get("runtime"))

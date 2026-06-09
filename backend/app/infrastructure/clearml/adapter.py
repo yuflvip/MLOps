@@ -48,3 +48,22 @@ class ClearMLAdapter:
             raise ClearMLAdapterError(
                 "Failed to fetch task statuses from ClearML: %s" % exc
             ) from exc
+
+    def get_task_log(
+        self,
+        task: str,
+        batch_size: int = 500,
+        from_timestamp: int | None = None,
+        order: str = "asc",
+    ) -> Dict[str, Any]:
+        try:
+            return self._client.get_task_log(
+                task=task,
+                batch_size=batch_size,
+                from_timestamp=from_timestamp,
+                order=order,
+            )
+        except Exception as exc:
+            raise ClearMLAdapterError(
+                "Failed to fetch task log from ClearML: %s" % exc
+            ) from exc
