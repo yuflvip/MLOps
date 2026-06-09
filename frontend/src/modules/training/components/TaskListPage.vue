@@ -15,6 +15,7 @@
           <el-option label="已停止" value="stopped" />
           <el-option label="已取消" value="cancelled" />
         </el-select>
+        <el-button :icon="Refresh" circle @click="fetchList" />
         <el-button type="primary" @click="showCreateDrawer = true">
           创建训练任务
         </el-button>
@@ -25,18 +26,19 @@
       :data="items"
       v-loading="loading"
       stripe
+      :default-sort="{ prop: 'created_at', order: 'descending' }"
       @row-click="handleRowClick"
       style="cursor: pointer"
     >
-      <el-table-column prop="task_name" label="任务名称" min-width="180" show-overflow-tooltip />
-      <el-table-column prop="template_name" label="模板" width="140" show-overflow-tooltip />
-      <el-table-column label="状态" width="110">
+      <el-table-column prop="task_name" label="任务名称" min-width="180" show-overflow-tooltip sortable />
+      <el-table-column prop="template_name" label="模板" width="140" show-overflow-tooltip sortable />
+      <el-table-column prop="status" label="状态" width="110" sortable>
         <template #default="{ row }">
           <TaskStatusTag :status="row.status" />
         </template>
       </el-table-column>
-      <el-table-column prop="queue_name" label="队列" width="140" show-overflow-tooltip />
-      <el-table-column label="创建时间" width="170">
+      <el-table-column prop="queue_name" label="队列" width="140" show-overflow-tooltip sortable />
+      <el-table-column prop="created_at" label="创建时间" width="170" sortable>
         <template #default="{ row }">
           <span class="font-mono">{{ formatTime(row.created_at) }}</span>
         </template>
@@ -69,6 +71,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { Refresh } from '@element-plus/icons-vue'
 import PageHeader from '@/shared/components/PageHeader.vue'
 import TaskStatusTag from './TaskStatusTag.vue'
 import CreateTaskDrawer from './CreateTaskDrawer.vue'
