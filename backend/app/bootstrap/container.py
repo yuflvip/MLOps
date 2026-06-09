@@ -103,6 +103,9 @@ def _build_task_status_sync_job(container: ApplicationContainer):
                 task_repository=repository,
             )
             service.sync_pending_tasks(limit=100)
+        except Exception:
+            session.rollback()
+            raise
         finally:
             session.close()
 

@@ -8,29 +8,41 @@ from app.infrastructure.db.models import TaskModel
 
 class TaskRepository:
     def __init__(self, session: Session) -> None:
-        self.session = session
+        self._session = session
 
     def add(self, task: TaskModel) -> TaskModel:
-        self.session.add(task)
-        self.session.flush()
-        self.session.refresh(task)
-        return task
+        try:
+            self._session.add(task)
+            self._session.flush()
+            self._session.refresh(task)
+            return task
+        except Exception:
+            self._session.rollback()
+            raise
 
     def save(self, task: TaskModel) -> TaskModel:
-        saved_task = self.session.merge(task)
-        self.session.flush()
-        self.session.refresh(saved_task)
-        return saved_task
+        try:
+            saved_task = self._session.merge(task)
+            self._session.flush()
+            self._session.refresh(saved_task)
+            return saved_task
+        except Exception:
+            self._session.rollback()
+            raise
 
     def commit(self) -> None:
-        self.session.commit()
+        try:
+            self._session.commit()
+        except Exception:
+            self._session.rollback()
+            raise
 
     def get_by_id(self, task_id: int) -> Optional[TaskModel]:
-        return self.session.get(TaskModel, task_id)
+        return self._session.get(TaskModel, task_id)
 
     def get_by_clearml_task_id(self, clearml_task_id: str) -> Optional[TaskModel]:
         stmt = select(TaskModel).where(TaskModel.clearml_task_id == clearml_task_id)
-        return self.session.scalar(stmt)
+        return self._session.scalar(stmt)
 
     def list_by_parent_task_id(self, parent_task_id: int) -> List[TaskModel]:
         stmt = (
@@ -38,7 +50,7 @@ class TaskRepository:
             .where(TaskModel.parent_task_id == parent_task_id)
             .order_by(TaskModel.id.asc())
         )
-        return list(self.session.scalars(stmt))
+        return list(self._session.scalars(stmt))
 
     def list_paginated(
         self,
@@ -63,8 +75,8 @@ class TaskRepository:
             count_stmt = count_stmt.where(TaskModel.status == status)
 
         stmt = stmt.order_by(TaskModel.id.desc()).offset(offset).limit(page_size)
-        items = list(self.session.scalars(stmt))
-        total = self.session.scalar(count_stmt) or 0
+        items = list(self._session.scalars(stmt))
+        total = self._session.scalar(count_stmt) or 0
         return items, int(total)
 
     def list_sync_candidates(
@@ -85,4 +97,4 @@ class TaskRepository:
             .order_by(TaskModel.id.asc())
             .limit(limit)
         )
-        return list(self.session.scalars(stmt))
+        return list(self._session.scalars(stmt))

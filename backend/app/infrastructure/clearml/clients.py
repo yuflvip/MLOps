@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import re
+import threading
 from typing import Any, Dict, List, Protocol
 
 import httpx
@@ -78,6 +79,11 @@ class HttpClearMLClient:
         self._secret_key = secret_key
         self._timeout_seconds = timeout_seconds
         self._bearer_token: str | None = None
+        self._token_lock = threading.Lock()
+        self._client = httpx.Client(
+            base_url=self._api_base_url,
+            timeout=self._timeout_seconds,
+        )
 
     def create_task(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         request_payload = self._build_task_create_request(payload)
@@ -235,44 +241,47 @@ class HttpClearMLClient:
         return project_id
 
     def _ensure_bearer_token(self) -> str:
-        if self._bearer_token:
-            return self._bearer_token
+        with self._token_lock:
+            if self._bearer_token:
+                return self._bearer_token
 
-        if not self._access_key or not self._secret_key:
-            raise RuntimeError("ClearML access credentials are required")
+            if not self._access_key or not self._secret_key:
+                raise RuntimeError("ClearML access credentials are required")
 
-        with httpx.Client(base_url=self._api_base_url, timeout=self._timeout_seconds) as client:
-            response = client.get(
+            response = self._client.get(
                 "/auth.login",
                 auth=(self._access_key, self._secret_key),
             )
             response.raise_for_status()
             payload = response.json()
 
-        token = None
-        if isinstance(payload, dict):
-            data = payload.get("data")
-            if isinstance(data, dict):
-                token = data.get("token")
+            token = None
+            if isinstance(payload, dict):
+                data = payload.get("data")
+                if isinstance(data, dict):
+                    token = data.get("token")
 
-        if not isinstance(token, str) or not token:
-            raise RuntimeError("ClearML auth.login did not return a bearer token")
+            if not isinstance(token, str) or not token:
+                raise RuntimeError("ClearML auth.login did not return a bearer token")
 
-        self._bearer_token = token
-        return token
+            self._bearer_token = token
+            return token
+
+    def _invalidate_token(self) -> None:
+        with self._token_lock:
+            self._bearer_token = None
 
     def _request(self, method: str, path: str, **kwargs: Any) -> Dict[str, Any]:
         headers = dict(kwargs.pop("headers", {}) or {})
         headers["Authorization"] = f"Bearer {self._ensure_bearer_token()}"
 
-        with httpx.Client(base_url=self._api_base_url, timeout=self._timeout_seconds) as client:
-            response = client.request(method, path, headers=headers, **kwargs)
-            if response.status_code == 401:
-                self._bearer_token = None
-                headers["Authorization"] = f"Bearer {self._ensure_bearer_token()}"
-                response = client.request(method, path, headers=headers, **kwargs)
-            response.raise_for_status()
-            payload = response.json()
+        response = self._client.request(method, path, headers=headers, **kwargs)
+        if response.status_code == 401:
+            self._invalidate_token()
+            headers["Authorization"] = f"Bearer {self._ensure_bearer_token()}"
+            response = self._client.request(method, path, headers=headers, **kwargs)
+        response.raise_for_status()
+        payload = response.json()
 
         return payload if isinstance(payload, dict) else {"data": payload}
 

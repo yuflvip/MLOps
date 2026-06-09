@@ -17,10 +17,15 @@ def normalize_database_url(database_url: str, base_dir: Path) -> str:
 
 
 def build_engine(database_url: str) -> Engine:
-    engine_kwargs = {"future": True}
-    if database_url.startswith("sqlite") and ":memory:" in database_url:
+    engine_kwargs: dict = {"future": True}
+    is_sqlite = database_url.startswith("sqlite")
+    is_memory = ":memory:" in database_url
+
+    if is_sqlite:
         engine_kwargs["connect_args"] = {"check_same_thread": False}
-        engine_kwargs["poolclass"] = StaticPool
+        if is_memory:
+            engine_kwargs["poolclass"] = StaticPool
+
     return create_engine(database_url, **engine_kwargs)
 
 
