@@ -6,6 +6,9 @@ from httpx import ASGITransport, AsyncClient
 from app.main import create_app
 
 
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+
+
 class StubTaskQueryService:
     def list_tasks(self, **_kwargs):
         return {
@@ -113,7 +116,7 @@ def build_test_client():
         get_training_command_service,
     )
 
-    app = create_app(config_path=Path("config/app.yaml"))
+    app = create_app(config_path=BACKEND_ROOT / "config" / "app.yaml")
     async def override_task_query_service():
         return StubTaskQueryService()
 
@@ -149,12 +152,12 @@ async def test_training_list_returns_unified_response_envelope():
         transport=ASGITransport(app=app),
         base_url="http://testserver",
     ) as client:
-        response = await client.get("/training")
+        response = await client.get("/mlops/training")
 
     assert response.status_code == 200
     payload = response.json()
     assert set(payload.keys()) == {"code", "message", "data", "request_id", "warnings"}
-    assert payload["code"] == "OK"
+    assert payload["code"] == 0
     assert payload["message"] == "success"
     assert payload["data"]["total"] == 1
     assert payload["data"]["items"][0]["task_name"] == "train-demo"
@@ -170,7 +173,7 @@ async def test_system_health_route_is_registered():
         transport=ASGITransport(app=app),
         base_url="http://testserver",
     ) as client:
-        response = await client.get("/system/health")
+        response = await client.get("/mlops/system/health")
 
     assert response.status_code == 200
     assert response.json()["data"]["status"] == "ok"
@@ -184,7 +187,7 @@ async def test_training_create_meta_returns_queue_schema():
         transport=ASGITransport(app=app),
         base_url="http://testserver",
     ) as client:
-        response = await client.get("/training/create-meta")
+        response = await client.get("/mlops/training/create-meta")
 
     assert response.status_code == 200
     payload = response.json()
@@ -210,7 +213,7 @@ async def test_create_training_uses_envelope_warnings_only():
         base_url="http://testserver",
     ) as client:
         response = await client.post(
-            "/training",
+            "/mlops/training",
             json={
                 "task_name": "train-created",
                 "template_name": "yolo-default",
@@ -239,7 +242,7 @@ async def test_create_conversion_uses_envelope_warnings_only():
         base_url="http://testserver",
     ) as client:
         response = await client.post(
-            "/conversion/onnx",
+            "/mlops/conversion/onnx",
             json={
                 "parent_task_id": 1,
                 "task_name": "train-demo-export-onnx",

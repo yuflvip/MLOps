@@ -3,6 +3,9 @@ from pathlib import Path
 import pytest
 
 from app.application.services.template_service import TemplateService
+
+
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
 from app.domain.common.exceptions import (
     TemplateNotFoundError,
     TemplateValidationError,
@@ -10,15 +13,32 @@ from app.domain.common.exceptions import (
 
 
 def test_template_service_loads_yolo_default_template():
-    service = TemplateService(Path("config/training-templates.yaml"))
+    service = TemplateService(BACKEND_ROOT / "config" / "training-templates.yaml")
 
     template = service.get_template("yolo-default")
 
     assert template["name"] == "yolo-default"
 
 
+def test_template_service_loads_convnext_default_template():
+    service = TemplateService(BACKEND_ROOT / "config" / "training-templates.yaml")
+
+    template = service.get_template("convnext-default")
+
+    assert template["name"] == "convnext-default"
+    assert template["entrypoint"] == "generic_clearml_wrapper.py"
+    assert template["runtime"]["launcher"] == "torchrun"
+    assert template["runtime"]["script_path"] == (
+        "/mnt/sdb/yufl/cnn/ConvNext/convnext_cls/tools/train.py"
+    )
+    assert template["execution_defaults"] == {
+        "cuda_visible_devices": "2",
+        "nproc_per_node": 1,
+    }
+
+
 def test_template_service_raises_for_unknown_template():
-    service = TemplateService(Path("config/training-templates.yaml"))
+    service = TemplateService(BACKEND_ROOT / "config" / "training-templates.yaml")
 
     with pytest.raises(TemplateNotFoundError):
         service.get_template("missing-template")

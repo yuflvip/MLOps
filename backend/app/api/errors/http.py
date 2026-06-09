@@ -8,12 +8,19 @@ from app.api.schemas.common import ErrorEnvelope
 
 logger = logging.getLogger(__name__)
 
+SUCCESS_CODE = 0
+TEMPLATE_NOT_FOUND_CODE = 40001
+TRAINING_TASK_NOT_FOUND_CODE = 40002
+DOMAIN_ERROR_CODE = 40003
+CLEARML_ADAPTER_ERROR_CODE = 50201
+INTERNAL_SERVER_ERROR_CODE = 50000
+
 
 class APIError(Exception):
     def __init__(
         self,
         status_code: int,
-        code: str,
+        code: int,
         message: str,
         details: Optional[Any] = None,
     ) -> None:
@@ -50,7 +57,7 @@ async def handle_unexpected_error(request: Request, exc: Exception) -> JSONRespo
         exc_info=True,
     )
     payload = ErrorEnvelope(
-        code="INTERNAL_SERVER_ERROR",
+        code=INTERNAL_SERVER_ERROR_CODE,
         message="internal server error",
         request_id=request_id,
     )
@@ -63,3 +70,17 @@ async def handle_unexpected_error(request: Request, exc: Exception) -> JSONRespo
 def install_http_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(APIError, handle_api_error)
     app.add_exception_handler(Exception, handle_unexpected_error)
+
+
+__all__ = [
+    "APIError",
+    "CLEARML_ADAPTER_ERROR_CODE",
+    "DOMAIN_ERROR_CODE",
+    "INTERNAL_SERVER_ERROR_CODE",
+    "SUCCESS_CODE",
+    "TEMPLATE_NOT_FOUND_CODE",
+    "TRAINING_TASK_NOT_FOUND_CODE",
+    "handle_api_error",
+    "handle_unexpected_error",
+    "install_http_error_handlers",
+]

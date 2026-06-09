@@ -8,7 +8,7 @@ from app.main import create_app
 def test_response_envelope_defaults():
     response = ResponseEnvelope(data={"ok": True})
 
-    assert response.code == "OK"
+    assert response.code == 0
     assert response.message == "success"
     assert response.warnings == []
 
@@ -30,7 +30,7 @@ def test_unexpected_error_returns_envelope_and_request_id_header():
     assert response.status_code == 500
     assert response.headers["X-Request-ID"]
     assert response.json() == {
-        "code": "INTERNAL_SERVER_ERROR",
+        "code": 50000,
         "message": "internal server error",
         "details": None,
         "request_id": response.headers["X-Request-ID"],

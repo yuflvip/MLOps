@@ -4,6 +4,7 @@ app:
   host: "0.0.0.0"
   port: 18087
   root_path: ""
+  api_prefix: "/mlops"
   docs_url: "/docs"
   openapi_url: "/openapi.json"
 
@@ -19,8 +20,10 @@ templates:
   conversion: "./config/conversion-templates.yaml"
 
 clearml:
-  mode: "stub"
-  api_base_url: "http://127.0.0.1:8008"
+  mode: "http"
+  api_base_url: "http://192.168.1.155:8008"
+  access_key: "L7Z39J8UFULIYZMS5JYEIAS16JMLO6"
+  secret_key: "svDrmtzhjcPY_zKdG9fE01CzUqELdtedMEUsE6XpMMdvbiS80FxO4cglbgTMlTJFIgg"
   timeout_seconds: 30
 
 scheduler:

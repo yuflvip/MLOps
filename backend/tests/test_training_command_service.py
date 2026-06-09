@@ -17,6 +17,9 @@ from app.infrastructure.db.models import TaskModel
 from app.infrastructure.repositories import TaskRepository
 
 
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+
+
 class StubClearMLClient:
     def __init__(self):
         self.created_payloads = []
@@ -54,9 +57,11 @@ def build_services():
 
     session = session_factory()
     repository = TaskRepository(session)
-    training_template_service = TemplateService(Path("config/training-templates.yaml"))
+    training_template_service = TemplateService(
+        BACKEND_ROOT / "config" / "training-templates.yaml"
+    )
     conversion_template_service = TemplateService(
-        Path("config/conversion-templates.yaml")
+        BACKEND_ROOT / "config" / "conversion-templates.yaml"
     )
     clearml_client = StubClearMLClient()
     clearml_adapter = ClearMLAdapter(clearml_client)
@@ -107,7 +112,52 @@ def test_training_command_service_returns_warning_when_queue_has_no_online_agent
     assert clearml_client.created_payloads[0]["template_name"] == "yolo-default"
     assert clearml_client.created_payloads[0]["queue"] == "queue_train_gpu"
     assert clearml_client.created_payloads[0]["parameters"]["epochs"] == 5
-    assert clearml_client.created_payloads[0]["entrypoint"] == "python train.py"
+    assert clearml_client.created_payloads[0]["entrypoint"] == "generic_clearml_wrapper.py"
+    assert clearml_client.created_payloads[0]["runtime"]["script_path"] == "train.py"
+    assert clearml_client.created_payloads[0]["execution_defaults"] == {
+        "nproc_per_node": 1,
+    }
+
+
+def test_training_command_service_propagates_convnext_runtime_context():
+    (
+        session,
+        repository,
+        training_template_service,
+        _conversion_template_service,
+        clearml_adapter,
+        clearml_client,
+    ) = build_services()
+    service = TrainingCommandService(
+        template_service=training_template_service,
+        clearml_adapter=clearml_adapter,
+        task_repository=repository,
+    )
+
+    result = service.create_task(
+        task_name="train-convnext-a",
+        template_name="convnext-default",
+    )
+
+    session.close()
+
+    assert result["task"]["template_name"] == "convnext-default"
+    assert clearml_client.created_payloads[0]["entrypoint"] == "generic_clearml_wrapper.py"
+    assert clearml_client.created_payloads[0]["queue"] == "train_convnext"
+    assert clearml_client.created_payloads[0]["runtime"]["script_path"] == (
+        "/mnt/sdb/yufl/cnn/ConvNext/convnext_cls/tools/train.py"
+    )
+    assert clearml_client.created_payloads[0]["execution_defaults"] == {
+        "cuda_visible_devices": "2",
+        "nproc_per_node": 1,
+    }
+    assert clearml_client.created_payloads[0]["parameters"] == {
+        "batch": 64,
+        "data": "/mnt/imgs_coco_datasets_145/2026_imgs_datasets/imgs_cls_vehicle_10class/imgs_cls_vehicle_10class_baseline/",
+        "epochs": 1,
+        "imgsz": 224,
+        "project": "classify_vehicle_10class",
+    }
 
 
 def test_conversion_command_service_creates_export_child_task():

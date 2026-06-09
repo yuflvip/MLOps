@@ -6,7 +6,12 @@ from app.api.deps.request_context import (
     RequestContext,
     get_request_context,
 )
-from app.api.errors.http import APIError
+from app.api.errors.http import (
+    APIError,
+    CLEARML_ADAPTER_ERROR_CODE,
+    DOMAIN_ERROR_CODE,
+    TEMPLATE_NOT_FOUND_CODE,
+)
 from app.api.schemas.common import ResponseEnvelope
 from app.application.services import (
     ConversionCommandService,
@@ -34,7 +39,9 @@ def install_routers(app: FastAPI, container: ApplicationContainer) -> None:
     api_router.include_router(training_router)
     api_router.include_router(conversion_router)
     api_router.include_router(system_router)
-    app.include_router(api_router)
+
+    api_prefix = container.settings.app.api_prefix
+    app.include_router(api_router, prefix=api_prefix)
 
 
 def build_success_response(
@@ -51,10 +58,10 @@ def build_success_response(
 
 def raise_api_error_for_domain_error(exc: DomainError) -> None:
     if isinstance(exc, TemplateNotFoundError):
-        raise APIError(status_code=404, code="TEMPLATE_NOT_FOUND", message=str(exc))
+        raise APIError(status_code=404, code=TEMPLATE_NOT_FOUND_CODE, message=str(exc))
     if isinstance(exc, ClearMLAdapterError):
-        raise APIError(status_code=502, code="CLEARML_ADAPTER_ERROR", message=str(exc))
-    raise APIError(status_code=400, code="DOMAIN_ERROR", message=str(exc))
+        raise APIError(status_code=502, code=CLEARML_ADAPTER_ERROR_CODE, message=str(exc))
+    raise APIError(status_code=400, code=DOMAIN_ERROR_CODE, message=str(exc))
 
 
 async def get_container(request: Request) -> ApplicationContainer:

@@ -2,14 +2,65 @@ templates:
   - name: "yolo-default"
     display_name: "YOLO Default"
     queue: "queue_train_gpu"
-    entrypoint: "python train.py"
+    entrypoint: "generic_clearml_wrapper.py"
     defaults:
       epochs: 100
       batch_size: 16
+    runtime:
+      launcher: "python"
+      script_path: "train.py"
+      working_dir: "."
+    execution_defaults:
+      nproc_per_node: 1
+
+  - name: "convnext-default"
+    display_name: "Convnext Default"
+    queue: "train_convnext"
+    entrypoint: "generic_clearml_wrapper.py"
+    defaults:
+      data: "/mnt/imgs_coco_datasets_145/2026_imgs_datasets/imgs_cls_vehicle_10class/imgs_cls_vehicle_10class_baseline/"
+      project: "classify_vehicle_10class"
+      epochs: 1
+      batch: 64
+      imgsz: 224
+    runtime:
+      launcher: "torchrun"
+      script_path: "/mnt/sdb/yufl/cnn/ConvNext/convnext_cls/tools/train.py"
+      working_dir: "/mnt/sdb/yufl/cnn/ConvNext/convnext_cls"
+      env:
+        NCCL_P2P_DISABLE: 0
+        NCCL_IB_DISABLE: 1
+      artifacts:
+        - name: "best_model"
+          role: "model_weight"
+          format: "pth"
+          path: "{output_dir}/best.pth"
+        - name: "last_model"
+          role: "model_weight"
+          format: "pth"
+          path: "{output_dir}/last.pth"
+        - name: "train_metrics"
+          role: "metrics"
+          format: "csv"
+          path: "{output_dir}/results.csv"
+        - name: "final_summary"
+          role: "summary"
+          format: "json"
+          path: "{output_dir}/final_summary.json"
+    execution_defaults:
+      nproc_per_node: 1
+      cuda_visible_devices: "2"
+
   - name: "default-training"
     display_name: "Default Training"
     queue: "training-default"
-    entrypoint: "python train.py"
+    entrypoint: "generic_clearml_wrapper.py"
     defaults:
       epochs: 100
       batch_size: 16
+    runtime:
+      launcher: "python"
+      script_path: "train.py"
+      working_dir: "."
+    execution_defaults:
+      nproc_per_node: 1

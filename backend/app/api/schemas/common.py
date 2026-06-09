@@ -7,7 +7,7 @@ DataT = TypeVar("DataT")
 
 
 class ResponseEnvelope(BaseModel, Generic[DataT]):
-    code: str = "OK"
+    code: int = 0
     message: str = "success"
     data: Optional[DataT] = None
     request_id: Optional[str] = None
@@ -15,7 +15,7 @@ class ResponseEnvelope(BaseModel, Generic[DataT]):
 
 
 class ErrorEnvelope(BaseModel):
-    code: str
+    code: int
     message: str
     details: Optional[Any] = None
     request_id: Optional[str] = None

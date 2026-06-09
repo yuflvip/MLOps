@@ -74,6 +74,8 @@ def _build_clearml_client(settings: Settings):
     if settings.clearml.mode == "http":
         return HttpClearMLClient(
             api_base_url=settings.clearml.api_base_url,
+            access_key=settings.clearml.access_key,
+            secret_key=settings.clearml.secret_key,
             timeout_seconds=settings.clearml.timeout_seconds,
         )
     return StubClearMLClient()

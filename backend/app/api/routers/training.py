@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, Query
 
-from app.api.errors.http import APIError
+from app.api.errors.http import APIError, TRAINING_TASK_NOT_FOUND_CODE
 from app.api.routers import (
     build_success_response,
     get_clearml_adapter,
@@ -84,7 +84,7 @@ async def get_training_task_detail(
     if result is None or result.get("task_group") != "training":
         raise APIError(
             status_code=404,
-            code="TRAINING_TASK_NOT_FOUND",
+            code=TRAINING_TASK_NOT_FOUND_CODE,
             message="Training task '%s' was not found" % task_id,
         )
     data = TrainingDetail.model_validate(result)

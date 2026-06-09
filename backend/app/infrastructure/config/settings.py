@@ -1,4 +1,17 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+def _normalize_path_prefix(value: object) -> str:
+    if value is None:
+        return ""
+    text = str(value).strip()
+    if not text:
+        return ""
+    if text == "/":
+        return "/"
+    if not text.startswith("/"):
+        text = f"/{text}"
+    return text.rstrip("/")
 
 
 class AppSettings(BaseModel):
@@ -7,8 +20,14 @@ class AppSettings(BaseModel):
     host: str = "0.0.0.0"
     port: int = 18087
     root_path: str = ""
+    api_prefix: str = ""
     docs_url: str = "/docs"
     openapi_url: str = "/openapi.json"
+
+    @field_validator("root_path", "api_prefix", "docs_url", "openapi_url", mode="before")
+    @classmethod
+    def _normalize_paths(cls, value: object) -> str:
+        return _normalize_path_prefix(value)
 
 
 class LoggingSettings(BaseModel):
@@ -28,6 +47,8 @@ class TemplateSourceSettings(BaseModel):
 class ClearMLSettings(BaseModel):
     mode: str = "stub"
     api_base_url: str = "http://127.0.0.1:8008"
+    access_key: str = ""
+    secret_key: str = ""
     timeout_seconds: int = 30
 
 
