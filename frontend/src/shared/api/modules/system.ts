@@ -16,9 +16,9 @@ export interface RuntimeData {
 }
 
 export function getHealth() {
-  return apiGet<HealthData>('/system/health')
+  return apiGet<HealthData>('/mlops/system/health')
 }
 
 export function getRuntime() {
-  return apiGet<RuntimeData>('/system/runtime')
+  return apiGet<RuntimeData>('/mlops/system/runtime')
 }

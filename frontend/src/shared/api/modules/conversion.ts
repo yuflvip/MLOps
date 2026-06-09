@@ -9,5 +9,5 @@ export interface ConversionCreateRequest {
 }
 
 export function createOnnxConversion(data: ConversionCreateRequest) {
-  return apiPostFull<TrainingCreateResult, ConversionCreateRequest>('/conversion/onnx', data)
+  return apiPostFull<TrainingCreateResult, ConversionCreateRequest>('/mlops/conversion/onnx', data)
 }

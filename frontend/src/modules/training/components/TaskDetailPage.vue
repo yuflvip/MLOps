@@ -73,7 +73,7 @@
         <div class="actions">
           <el-button
             type="primary"
-            :disabled="task.status !== 'succeeded'"
+            :disabled="task.status !== 'completed'"
             @click="showConversionDrawer = true"
           >
             🔄 导出为 ONNX

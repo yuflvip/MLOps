@@ -57,7 +57,7 @@
         </el-select>
       </el-form-item>
 
-      <el-form-item v-if="selectedTemplate" label="模板参数">
+      <el-form-item v-if="selectedTemplate" label="业务参数">
         <div class="param-editor">
           <div v-for="(value, key) in form.params" :key="key" class="param-row">
             <span class="param-key">{{ key }}</span>
@@ -69,6 +69,19 @@
           </div>
           <div v-if="Object.keys(form.params).length === 0" class="text-muted" style="font-size: 12px">
             该模板无默认参数
+          </div>
+        </div>
+      </el-form-item>
+
+      <el-form-item v-if="selectedTemplate && Object.keys(form.execution_params).length" label="执行参数">
+        <div class="param-editor">
+          <div v-for="(value, key) in form.execution_params" :key="'exec-'+key" class="param-row">
+            <span class="param-key">{{ key }}</span>
+            <el-input
+              :model-value="String(value)"
+              @update:model-value="updateExecParam(key, $event)"
+              size="small"
+            />
           </div>
         </div>
       </el-form-item>
@@ -109,6 +122,7 @@ const form = ref({
   template_name: '',
   queue_name: null as string | null,
   params: {} as Record<string, unknown>,
+  execution_params: {} as Record<string, unknown>,
 })
 
 const rules: FormRules = {
@@ -119,7 +133,7 @@ const rules: FormRules = {
 watch(modelValue, (val) => {
   if (val) {
     trainingStore.loadCreateMeta()
-    form.value = { task_name: '', template_name: '', queue_name: null, params: {} }
+    form.value = { task_name: '', template_name: '', queue_name: null, params: {}, execution_params: {} }
   }
 })
 
@@ -127,10 +141,15 @@ function handleTemplateChange(name: string) {
   const tpl = templates.value.find(t => t.name === name)
   form.value.queue_name = tpl?.queue || null
   form.value.params = tpl ? { ...tpl.defaults } : {}
+  form.value.execution_params = tpl ? { ...tpl.execution_defaults } : {}
 }
 
 function updateParam(key: string, val: string) {
   form.value.params[key] = val
+}
+
+function updateExecParam(key: string, val: string) {
+  form.value.execution_params[key] = val
 }
 
 async function handleSubmit() {
@@ -143,6 +162,7 @@ async function handleSubmit() {
       task_name: form.value.task_name,
       template_name: form.value.template_name,
       params: form.value.params,
+      execution_params: form.value.execution_params,
       queue_name: form.value.queue_name,
     })
 

@@ -9,9 +9,10 @@
           style="width: 140px"
         >
           <el-option label="排队中" value="queued" />
-          <el-option label="运行中" value="running" />
-          <el-option label="已完成" value="succeeded" />
+          <el-option label="运行中" value="in_progress" />
+          <el-option label="已完成" value="completed" />
           <el-option label="失败" value="failed" />
+          <el-option label="已停止" value="stopped" />
           <el-option label="已取消" value="cancelled" />
         </el-select>
         <el-button type="primary" @click="showCreateDrawer = true">

@@ -83,17 +83,17 @@ export interface TrainingCreateResult {
 // ---------- API Calls ----------
 
 export function getTrainingList(params: PaginationParams) {
-  return apiGet<PaginatedData<TrainingTaskSummary>, PaginationParams>('/training', params)
+  return apiGet<PaginatedData<TrainingTaskSummary>, PaginationParams>('/mlops/training', params)
 }
 
 export function getTrainingDetail(id: number) {
-  return apiGet<TrainingTaskSummary>(`/training/${id}`)
+  return apiGet<TrainingTaskSummary>(`/mlops/training/${id}`)
 }
 
 export function getTrainingCreateMeta() {
-  return apiGet<TrainingCreateMetaData>('/training/create-meta')
+  return apiGet<TrainingCreateMetaData>('/mlops/training/create-meta')
 }
 
 export function createTraining(data: TrainingCreateRequest) {
-  return apiPostFull<TrainingCreateResult, TrainingCreateRequest>('/training', data)
+  return apiPostFull<TrainingCreateResult, TrainingCreateRequest>('/mlops/training', data)
 }
