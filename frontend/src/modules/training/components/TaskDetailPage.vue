@@ -65,6 +65,12 @@
         <JsonViewer :data="task.result_summary" />
       </el-card>
 
+      <!-- Console Log -->
+      <ConsoleLog
+        :clearml-task-id="task.clearml_task_id"
+        :task-status="task.status"
+      />
+
       <!-- Actions -->
       <el-card class="detail-card">
         <template #header>
@@ -100,6 +106,7 @@ import { useRouter } from 'vue-router'
 import { Loading } from '@element-plus/icons-vue'
 import TaskStatusTag from './TaskStatusTag.vue'
 import ConversionDrawer from './ConversionDrawer.vue'
+import ConsoleLog from './ConsoleLog.vue'
 import JsonViewer from '@/shared/components/JsonViewer.vue'
 import { getTrainingDetail, type TrainingTaskSummary } from '@/shared/api/modules/training'
 import { formatTime } from '@/shared/utils/format'
