@@ -55,6 +55,7 @@ class ClearMLSettings(BaseModel):
 class SchedulerSettings(BaseModel):
     enabled: bool = True
     timezone: str = "UTC"
+    task_status_sync_interval_seconds: int = 30
 
 
 class Settings(BaseModel):

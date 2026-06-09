@@ -63,15 +63,27 @@ async def get_training_create_meta(
         TrainingTemplateItem.model_validate(item)
         for item in template_service.list_templates()
     ]
-    queues = [
-        TrainingQueueStatusItem.model_validate(item)
-        for item in clearml_adapter.list_queue_statuses()
-    ]
+    warnings: list[str] = []
+    try:
+        queues = [
+            TrainingQueueStatusItem.model_validate(item)
+            for item in clearml_adapter.list_queue_statuses()
+        ]
+    except Exception:
+        queues = []
+        warnings.append(
+            "Queue metadata is temporarily unavailable. Template data is still returned."
+        )
+
     data = TrainingCreateMetaData(
         templates=templates,
         queues=queues,
     )
-    return build_success_response(data=data, request_context=request_context)
+    return build_success_response(
+        data=data,
+        request_context=request_context,
+        warnings=warnings,
+    )
 
 
 @router.get("/{task_id}", response_model=ResponseEnvelope[TrainingDetail])
@@ -102,6 +114,7 @@ async def create_training_task(
             task_name=payload.task_name,
             template_name=payload.template_name,
             params=payload.params,
+            execution_params=payload.execution_params,
             queue_name=payload.queue_name,
             custom_data=payload.custom_data,
         )

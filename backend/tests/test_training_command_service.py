@@ -144,6 +144,7 @@ def test_training_command_service_propagates_convnext_runtime_context():
     assert result["task"]["template_name"] == "convnext-default"
     assert clearml_client.created_payloads[0]["entrypoint"] == "generic_clearml_wrapper.py"
     assert clearml_client.created_payloads[0]["queue"] == "train_convnext"
+    assert clearml_client.created_payloads[0]["project"] == "classify_vehicle_10class"
     assert clearml_client.created_payloads[0]["runtime"]["script_path"] == (
         "/mnt/sdb/yufl/cnn/ConvNext/convnext_cls/tools/train.py"
     )
@@ -157,6 +158,35 @@ def test_training_command_service_propagates_convnext_runtime_context():
         "epochs": 1,
         "imgsz": 224,
         "project": "classify_vehicle_10class",
+    }
+
+
+def test_training_command_service_passes_execution_params_into_runtime():
+    (
+        session,
+        repository,
+        training_template_service,
+        _conversion_template_service,
+        clearml_adapter,
+        clearml_client,
+    ) = build_services()
+    service = TrainingCommandService(
+        template_service=training_template_service,
+        clearml_adapter=clearml_adapter,
+        task_repository=repository,
+    )
+
+    service.create_task(
+        task_name="train-yolo-exec-params",
+        template_name="yolo-default",
+        execution_params={"nproc_per_node": 2, "cuda_visible_devices": "1"},
+    )
+
+    session.close()
+
+    assert clearml_client.created_payloads[0]["runtime"]["execution_params"] == {
+        "nproc_per_node": 2,
+        "cuda_visible_devices": "1",
     }
 
 

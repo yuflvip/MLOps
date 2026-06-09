@@ -24,6 +24,7 @@ class TrainingCommandService:
         task_name: str,
         template_name: str,
         params: Optional[Dict[str, Any]] = None,
+        execution_params: Optional[Dict[str, Any]] = None,
         queue_name: Optional[str] = None,
         custom_data: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
@@ -38,6 +39,7 @@ class TrainingCommandService:
             template=template,
             queue_name=resolved_queue_name,
             parameters=merged_params,
+            execution_params=execution_params or {},
         )
         warnings = self._build_queue_warnings(resolved_queue_name)
         clearml_task = self._clearml_adapter.create_task(payload)
@@ -58,6 +60,7 @@ class TrainingCommandService:
                     {
                         "entrypoint": template.get("entrypoint"),
                         "queue_name": resolved_queue_name,
+                        "execution_params": execution_params or {},
                     }
                 ),
                 custom_data_json=_dump_json(
@@ -83,6 +86,7 @@ class TrainingCommandService:
         template: Dict[str, Any],
         queue_name: Optional[str],
         parameters: Dict[str, Any],
+        execution_params: Dict[str, Any],
     ) -> Dict[str, Any]:
         payload = {
             "name": task_name,
@@ -91,7 +95,14 @@ class TrainingCommandService:
             "entrypoint": template.get("entrypoint"),
             "parameters": parameters,
         }
+        project_value = parameters.get("project")
+        if isinstance(project_value, str) and project_value:
+            payload["project"] = project_value
         payload.update(_extract_template_context(template))
+        runtime = dict(payload.get("runtime") or {})
+        if execution_params:
+            runtime["execution_params"] = dict(execution_params)
+            payload["runtime"] = runtime
         return payload
 
     def _build_queue_warnings(self, queue_name: Optional[str]) -> List[str]:

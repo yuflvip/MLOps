@@ -39,11 +39,28 @@ class TrainingListData(BaseModel):
 
 
 class TrainingTemplateItem(BaseModel):
+    class RuntimeArtifactItem(BaseModel):
+        name: str
+        role: str
+        format: str
+        path: str
+
+    class RuntimeConfigItem(BaseModel):
+        launcher: Optional[str] = None
+        script_path: Optional[str] = None
+        working_dir: Optional[str] = None
+        env: Dict[str, Any] = Field(default_factory=dict)
+        artifacts: List["TrainingTemplateItem.RuntimeArtifactItem"] = Field(
+            default_factory=list
+        )
+
     name: str
     display_name: Optional[str] = None
     queue: Optional[str] = None
     entrypoint: Optional[str] = None
     defaults: Dict[str, Any] = Field(default_factory=dict)
+    runtime: Optional[RuntimeConfigItem] = None
+    execution_defaults: Dict[str, Any] = Field(default_factory=dict)
 
 
 class TrainingQueueAgentItem(BaseModel):
@@ -68,6 +85,7 @@ class TrainingCreateRequest(BaseModel):
     task_name: str
     template_name: str
     params: Dict[str, Any] = Field(default_factory=dict)
+    execution_params: Dict[str, Any] = Field(default_factory=dict)
     queue_name: Optional[str] = None
     custom_data: Dict[str, Any] = Field(default_factory=dict)
 

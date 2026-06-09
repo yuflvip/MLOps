@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple
+from typing import Iterable, List, Optional, Tuple
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -66,3 +66,23 @@ class TaskRepository:
         items = list(self.session.scalars(stmt))
         total = self.session.scalar(count_stmt) or 0
         return items, int(total)
+
+    def list_sync_candidates(
+        self,
+        *,
+        limit: int = 100,
+        terminal_statuses: Optional[Iterable[str]] = None,
+    ) -> List[TaskModel]:
+        excluded_statuses = tuple(
+            terminal_statuses
+            or ("completed", "failed", "stopped", "published", "closed")
+        )
+        stmt = (
+            select(TaskModel)
+            .where(TaskModel.clearml_task_id.is_not(None))
+            .where(TaskModel.clearml_task_id != "")
+            .where(TaskModel.status.not_in(excluded_statuses))
+            .order_by(TaskModel.id.asc())
+            .limit(limit)
+        )
+        return list(self.session.scalars(stmt))

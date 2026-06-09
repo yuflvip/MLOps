@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
 from typing import Any, Dict, List, Protocol
 
 import httpx
@@ -9,6 +10,9 @@ import httpx
 
 class ClearMLClientProtocol(Protocol):
     def create_task(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        ...
+
+    def get_tasks(self, task_ids: List[str]) -> List[Dict[str, Any]]:
         ...
 
     def list_queues(self) -> List[Dict[str, Any]]:
@@ -35,6 +39,12 @@ class StubClearMLClient:
 
     def list_agents(self) -> List[Dict[str, Any]]:
         return []
+
+    def get_tasks(self, task_ids: List[str]) -> List[Dict[str, Any]]:
+        return [
+            {"id": task_id, "status": "queued"}
+            for task_id in task_ids
+        ]
 
 
 class HttpClearMLClient:
@@ -74,9 +84,24 @@ class HttpClearMLClient:
         payload = self._extract_payload(response, "workers")
         return list(payload if isinstance(payload, list) else [])
 
+    def get_tasks(self, task_ids: List[str]) -> List[Dict[str, Any]]:
+        if not task_ids:
+            return []
+        response = self._request(
+            "POST",
+            "/tasks.get_all",
+            json={
+                "id": list(task_ids),
+                "only_fields": ["id", "status", "status_message", "status_reason"],
+            },
+        )
+        payload = self._extract_payload(response, "tasks")
+        return list(payload if isinstance(payload, list) else [])
+
     def _build_task_create_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         runtime = _normalize_mapping(payload.get("runtime"))
         execution_defaults = _normalize_mapping(payload.get("execution_defaults"))
+        parameters = _normalize_mapping(payload.get("parameters"))
         merged_runtime = dict(runtime)
         if execution_defaults:
             runtime_execution_params = _normalize_mapping(runtime.get("execution_params"))
@@ -91,7 +116,7 @@ class HttpClearMLClient:
         queue_name = payload.get("queue")
         queue_id = self._resolve_queue_id(queue_name)
         hyperparams = _build_hyperparams(
-            args=_normalize_mapping(payload.get("parameters")),
+            args=parameters,
             runtime=merged_runtime,
         )
 
@@ -113,8 +138,15 @@ class HttpClearMLClient:
 
         if payload.get("parent_clearml_task_id"):
             request_payload["parent"] = payload["parent_clearml_task_id"]
-        if payload.get("project_id"):
-            request_payload["project"] = payload["project_id"]
+        project_id = payload.get("project_id")
+        if isinstance(project_id, str) and project_id:
+            request_payload["project"] = project_id
+        else:
+            project_name = payload.get("project") or parameters.get("project")
+            if isinstance(project_name, str) and project_name:
+                request_payload["project"] = self._resolve_or_create_project_id(
+                    project_name
+                )
         if payload.get("comment"):
             request_payload["comment"] = payload["comment"]
         if payload.get("tags"):
@@ -136,6 +168,33 @@ class HttpClearMLClient:
         if isinstance(queue_id, str) and queue_id:
             enqueue_payload["queue"] = queue_id
         self._request("POST", "/tasks.enqueue", json=enqueue_payload)
+
+    def _resolve_or_create_project_id(self, project_name: str) -> str:
+        response = self._request(
+            "POST",
+            "/projects.get_all",
+            json={"name": f"^{re.escape(project_name)}$"},
+        )
+        projects = self._extract_payload(response, "projects")
+        if isinstance(projects, list):
+            for project in projects:
+                if (
+                    isinstance(project, dict)
+                    and project.get("name") == project_name
+                    and isinstance(project.get("id"), str)
+                    and project.get("id")
+                ):
+                    return project["id"]
+
+        response = self._request("POST", "/projects.create", json={"name": project_name})
+        project_id = response.get("id")
+        if not isinstance(project_id, str) or not project_id:
+            data = response.get("data")
+            if isinstance(data, dict):
+                project_id = data.get("id")
+        if not isinstance(project_id, str) or not project_id:
+            raise RuntimeError("ClearML projects.create did not return a project id")
+        return project_id
 
     def _ensure_bearer_token(self) -> str:
         if self._bearer_token:

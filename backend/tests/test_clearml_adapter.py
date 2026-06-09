@@ -1,3 +1,6 @@
+import pytest
+
+from app.domain.common.exceptions import ClearMLAdapterError
 from app.infrastructure.clearml.adapter import ClearMLAdapter
 
 
@@ -77,3 +80,27 @@ def test_clearml_adapter_lists_queue_status_summaries():
             ],
         },
     ]
+
+
+class FailingClearMLClient:
+    def create_task(self, payload):
+        raise RuntimeError("boom")
+
+    def list_queues(self):
+        raise RuntimeError("boom")
+
+    def list_agents(self):
+        raise RuntimeError("boom")
+
+
+def test_clearml_adapter_wraps_client_errors():
+    adapter = ClearMLAdapter(FailingClearMLClient())
+
+    with pytest.raises(ClearMLAdapterError, match="queue metadata.*boom"):
+        adapter.list_queues()
+
+    with pytest.raises(ClearMLAdapterError, match="agent metadata.*boom"):
+        adapter.list_agents()
+
+    with pytest.raises(ClearMLAdapterError, match="create task.*boom"):
+        adapter.create_task({"name": "demo"})

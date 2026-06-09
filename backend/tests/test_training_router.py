@@ -37,7 +37,10 @@ class StubTaskQueryService:
 
 
 class StubTrainingCommandService:
+    last_payload = None
+
     def create_task(self, **_kwargs):
+        self.last_payload = dict(_kwargs)
         return {
             "task": {
                 "id": 2,
@@ -85,6 +88,21 @@ class StubTemplateService:
                 "queue": "queue_train_gpu",
                 "entrypoint": "python train.py",
                 "defaults": {"epochs": 100},
+                "runtime": {
+                    "launcher": "python",
+                    "script_path": "train.py",
+                    "working_dir": "/workspace/yolo",
+                    "env": {"CUDA_VISIBLE_DEVICES": "0"},
+                    "artifacts": [
+                        {
+                            "name": "best_model",
+                            "role": "model_weight",
+                            "format": "pt",
+                            "path": "{output_dir}/best.pt",
+                        }
+                    ],
+                },
+                "execution_defaults": {"nproc_per_node": 1},
             }
         ]
 
@@ -100,6 +118,11 @@ class StubClearMLAdapter:
                 "last_seen": "2026-06-06T08:00:00Z",
             }
         ]
+
+
+class FailingClearMLAdapter:
+    def list_queue_statuses(self):
+        raise RuntimeError("clearml unavailable")
 
 
 @pytest.fixture
@@ -193,6 +216,23 @@ async def test_training_create_meta_returns_queue_schema():
     payload = response.json()
     assert payload["warnings"] == []
     assert payload["data"]["templates"][0]["name"] == "yolo-default"
+    assert payload["data"]["templates"][0]["runtime"] == {
+        "launcher": "python",
+        "script_path": "train.py",
+        "working_dir": "/workspace/yolo",
+        "env": {"CUDA_VISIBLE_DEVICES": "0"},
+        "artifacts": [
+            {
+                "name": "best_model",
+                "role": "model_weight",
+                "format": "pt",
+                "path": "{output_dir}/best.pt",
+            }
+        ],
+    }
+    assert payload["data"]["templates"][0]["execution_defaults"] == {
+        "nproc_per_node": 1,
+    }
     assert payload["data"]["queues"] == [
         {
             "queue_name": "queue_train_gpu",
@@ -205,8 +245,44 @@ async def test_training_create_meta_returns_queue_schema():
 
 
 @pytest.mark.anyio
+async def test_training_create_meta_degrades_when_queue_probe_fails():
+    app = build_test_client()
+
+    from app.api.routers import get_clearml_adapter
+
+    async def override_clearml_adapter():
+        return FailingClearMLAdapter()
+
+    app.dependency_overrides[get_clearml_adapter] = override_clearml_adapter
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.get("/mlops/training/create-meta")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["data"]["templates"][0]["name"] == "yolo-default"
+    assert payload["data"]["queues"] == []
+    assert payload["warnings"] == [
+        "Queue metadata is temporarily unavailable. Template data is still returned."
+    ]
+
+
+@pytest.mark.anyio
 async def test_create_training_uses_envelope_warnings_only():
     app = build_test_client()
+    service = StubTrainingCommandService()
+
+    from app.api.routers import get_training_command_service
+
+    async def override_training_command_service():
+        return service
+
+    app.dependency_overrides[get_training_command_service] = (
+        override_training_command_service
+    )
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -218,6 +294,7 @@ async def test_create_training_uses_envelope_warnings_only():
                 "task_name": "train-created",
                 "template_name": "yolo-default",
                 "params": {"epochs": 10},
+                "execution_params": {"nproc_per_node": 2},
                 "queue_name": "queue_train_gpu",
                 "custom_data": {},
             },
@@ -228,6 +305,7 @@ async def test_create_training_uses_envelope_warnings_only():
     assert payload["warnings"] == [
         "Queue 'queue_train_gpu' has no online agents. The task will remain queued until an agent comes online."
     ]
+    assert service.last_payload["execution_params"] == {"nproc_per_node": 2}
     assert "warnings" not in payload["data"]
     assert payload["data"]["task"]["task_name"] == "train-created"
     assert payload["data"]["submission"]["clearml_task_id"] == "clearml-02"

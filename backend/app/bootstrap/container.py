@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any, Optional, Union
 
 from app.application.services.template_service import TemplateService
+from app.application.services.task_status_sync_service import TaskStatusSyncService
 from app.infrastructure.clearml import (
     ClearMLAdapter,
     HttpClearMLClient,
@@ -22,6 +23,7 @@ from app.infrastructure.scheduler import (
     SchedulerManager,
     register_scheduler_jobs,
 )
+from app.infrastructure.repositories import TaskRepository
 
 
 @dataclass
@@ -48,8 +50,8 @@ def build_container(config_path: Optional[Union[Path, str]] = None) -> Applicati
         enabled=settings.scheduler.enabled,
         timezone=settings.scheduler.timezone,
     )
-    register_scheduler_jobs(scheduler_manager)
-    return ApplicationContainer(
+    clearml_adapter = ClearMLAdapter(_build_clearml_client(settings))
+    container = ApplicationContainer(
         config_path=resolved_config_path,
         config_dir=config_dir,
         settings=settings,
@@ -60,9 +62,19 @@ def build_container(config_path: Optional[Union[Path, str]] = None) -> Applicati
         conversion_template_service=TemplateService(
             _resolve_template_path(settings.templates.conversion, config_dir)
         ),
-        clearml_adapter=ClearMLAdapter(_build_clearml_client(settings)),
+        clearml_adapter=clearml_adapter,
         scheduler_manager=scheduler_manager,
     )
+    register_scheduler_jobs(
+        scheduler_manager,
+        _build_task_status_sync_job(container),
+        task_status_sync_interval_seconds=(
+            settings.scheduler.task_status_sync_interval_seconds
+        ),
+    )
+    return container
+
+
 def _resolve_template_path(template_path: str, config_dir: Path) -> Path:
     path = Path(template_path)
     if not path.is_absolute():
@@ -79,3 +91,19 @@ def _build_clearml_client(settings: Settings):
             timeout_seconds=settings.clearml.timeout_seconds,
         )
     return StubClearMLClient()
+
+
+def _build_task_status_sync_job(container: ApplicationContainer):
+    def run() -> None:
+        session = container.session_factory()
+        try:
+            repository = TaskRepository(session)
+            service = TaskStatusSyncService(
+                clearml_adapter=container.clearml_adapter,
+                task_repository=repository,
+            )
+            service.sync_pending_tasks(limit=100)
+        finally:
+            session.close()
+
+    return run
