@@ -6,6 +6,8 @@ def test_http_clearml_client_builds_tasks_create_request():
         api_base_url="http://clearml.example",
         access_key="access",
         secret_key="secret",
+        runner_working_dir="/opt/mlops/clearml_runner",
+        runner_entrypoint="entrypoint.py",
     )
     client._resolve_queue_id = lambda queue_name: "queue-123"  # type: ignore[method-assign]
 
@@ -43,7 +45,6 @@ def test_http_clearml_client_builds_tasks_create_request():
     payload = {
         "name": "convnext-train-a",
         "project": "classify_vehicle_10class",
-        "entrypoint": "generic_clearml_wrapper.py",
         "queue": "train_convnext",
         "parameters": {
             "batch": 64,
@@ -89,9 +90,12 @@ def test_http_clearml_client_builds_tasks_create_request():
     assert request_payload["project"] == "project-123"
     assert request_payload["type"] == "training"
     assert request_payload["execution"] == {"queue": "queue-123"}
-    assert request_payload["script"]["entry_point"] == "generic_clearml_wrapper.py"
-    assert request_payload["script"]["working_dir"] == "/mnt/sdb/yufl/cnn/ConvNext/convnext_cls"
-    assert request_payload["script"]["diff"].startswith("#!/usr/bin/env python3")
+    assert (
+        request_payload["script"]["entry_point"]
+        == "/opt/mlops/clearml_runner/entrypoint.py"
+    )
+    assert request_payload["script"]["working_dir"] == "."
+    assert request_payload["script"]["diff"] == ""
     assert request_payload["hyperparams"]["Args"]["batch"] == {
         "name": "batch",
         "section": "Args",
@@ -115,6 +119,8 @@ def test_http_clearml_client_uses_project_from_parameters_when_missing_top_level
         api_base_url="http://clearml.example",
         access_key="access",
         secret_key="secret",
+        runner_working_dir="/opt/mlops/clearml_runner",
+        runner_entrypoint="entrypoint.py",
     )
     client._resolve_queue_id = lambda queue_name: "queue-123"  # type: ignore[method-assign]
 
@@ -137,7 +143,6 @@ def test_http_clearml_client_uses_project_from_parameters_when_missing_top_level
     client.create_task(
         {
             "name": "convnext-train-a",
-            "entrypoint": "generic_clearml_wrapper.py",
             "queue": "train_convnext",
             "parameters": {
                 "project": "classify_vehicle_10class",
@@ -162,6 +167,8 @@ def test_http_clearml_client_gets_tasks_by_ids():
         api_base_url="http://clearml.example",
         access_key="access",
         secret_key="secret",
+        runner_working_dir="/opt/mlops/clearml_runner",
+        runner_entrypoint="entrypoint.py",
     )
 
     requests = []
@@ -199,3 +206,43 @@ def test_http_clearml_client_gets_tasks_by_ids():
             },
         )
     ]
+
+
+def test_http_clearml_client_accepts_absolute_runner_entrypoint():
+    client = HttpClearMLClient(
+        api_base_url="http://clearml.example",
+        access_key="access",
+        secret_key="secret",
+        runner_working_dir="/opt/mlops/clearml_runner",
+        runner_entrypoint="/srv/mlops/entrypoint.py",
+    )
+    client._resolve_queue_id = lambda queue_name: "queue-123"  # type: ignore[method-assign]
+
+    requests = []
+
+    def fake_request(method, path, **kwargs):
+        requests.append((method, path, kwargs))
+        if path == "/tasks.create":
+            return {"data": {"id": "task-123"}}
+        if path == "/tasks.enqueue":
+            return {"data": {"queued": 1}}
+        raise AssertionError(f"Unexpected request path: {path}")
+
+    client._request = fake_request  # type: ignore[attr-defined]
+
+    client.create_task(
+        {
+            "name": "convnext-train-a",
+            "queue": "train_convnext",
+            "parameters": {},
+            "runtime": {
+                "launcher": "torchrun",
+                "script_path": "/mnt/sdb/yufl/cnn/ConvNext/convnext_cls/tools/train.py",
+                "working_dir": "/mnt/sdb/yufl/cnn/ConvNext/convnext_cls",
+            },
+        }
+    )
+
+    request_payload = requests[0][2]["json"]
+    assert request_payload["script"]["entry_point"] == "/srv/mlops/entrypoint.py"
+    assert request_payload["script"]["working_dir"] == "."

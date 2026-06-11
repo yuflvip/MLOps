@@ -25,6 +25,8 @@ clearml:
   access_key: "L7Z39J8UFULIYZMS5JYEIAS16JMLO6"
   secret_key: "svDrmtzhjcPY_zKdG9fE01CzUqELdtedMEUsE6XpMMdvbiS80FxO4cglbgTMlTJFIgg"
   timeout_seconds: 30
+  runner_working_dir: "/home/yufl/workspace-2026/MLOps/backend/scripts"
+  runner_entrypoint: "entrypoint.py"
 
 scheduler:
   enabled: true

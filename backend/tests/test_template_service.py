@@ -18,6 +18,7 @@ def test_template_service_loads_yolo_default_template():
     template = service.get_template("yolo-default")
 
     assert template["name"] == "yolo-default"
+    assert template["runtime"]["adapter"] == "training"
 
 
 def test_template_service_loads_convnext_default_template():
@@ -26,8 +27,9 @@ def test_template_service_loads_convnext_default_template():
     template = service.get_template("convnext-default")
 
     assert template["name"] == "convnext-default"
-    assert template["entrypoint"] == "generic_clearml_wrapper.py"
+    assert template.get("entrypoint") is None
     assert template["runtime"]["launcher"] == "torchrun"
+    assert template["runtime"]["adapter"] == "training"
     assert template["runtime"]["script_path"] == (
         "/mnt/sdb/yufl/cnn/ConvNext/convnext_cls/tools/train.py"
     )
@@ -59,13 +61,56 @@ def test_template_service_rejects_duplicate_template_names(tmp_path):
 templates:
   - name: duplicate
     queue: queue-a
+    runtime:
+      adapter: generic
+      launcher: python
+      script_path: train.py
   - name: duplicate
     queue: queue-b
+    runtime:
+      adapter: generic
+      launcher: python
+      script_path: train.py
 """.strip(),
         encoding="utf-8",
     )
 
     with pytest.raises(TemplateValidationError, match="Duplicate template name"):
+        TemplateService(template_path)
+
+
+def test_template_service_rejects_missing_runtime_adapter(tmp_path):
+    template_path = tmp_path / "training-templates.yaml"
+    template_path.write_text(
+        """
+templates:
+  - name: missing-adapter
+    runtime:
+      launcher: python
+      script_path: train.py
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(TemplateValidationError, match="runtime.adapter"):
+        TemplateService(template_path)
+
+
+def test_template_service_rejects_unsupported_runtime_adapter(tmp_path):
+    template_path = tmp_path / "training-templates.yaml"
+    template_path.write_text(
+        """
+templates:
+  - name: bad-adapter
+    runtime:
+      adapter: unknown
+      launcher: python
+      script_path: train.py
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(TemplateValidationError, match="not supported"):
         TemplateService(template_path)
 
 
@@ -79,11 +124,13 @@ templates:
     queue: queue-a
     entrypoint: python train.py
     project: cv/project-a
+    runtime:
+      adapter: generic
+      launcher: python
+      script_path: train.py
     tags:
       - yolo
       - baseline
-    execution:
-      working_dir: /workspace/project-a
     defaults:
       epochs: 10
 """.strip(),
@@ -96,4 +143,4 @@ templates:
 
     assert template["project"] == "cv/project-a"
     assert template["tags"] == ["yolo", "baseline"]
-    assert template["execution"] == {"working_dir": "/workspace/project-a"}
+    assert template["runtime"]["adapter"] == "generic"

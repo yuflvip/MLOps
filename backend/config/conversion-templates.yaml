@@ -6,4 +6,8 @@ templates:
     defaults:
       opset: 17
       dynamic: false
-
+    runtime:
+      adapter: "onnx_export"
+      launcher: "python"
+      script_path: "export.py"
+      working_dir: "."

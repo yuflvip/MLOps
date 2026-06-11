@@ -89,6 +89,8 @@ def _build_clearml_client(settings: Settings):
             access_key=settings.clearml.access_key,
             secret_key=settings.clearml.secret_key,
             timeout_seconds=settings.clearml.timeout_seconds,
+            runner_working_dir=settings.clearml.runner_working_dir,
+            runner_entrypoint=settings.clearml.runner_entrypoint,
         )
     return StubClearMLClient()
 

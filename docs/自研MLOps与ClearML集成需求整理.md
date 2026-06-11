@@ -1,5 +1,9 @@
 # 自研 MLOps 与 ClearML 集成需求整理
 
+```
+ClearML api 官方文档：https://clear.ml/docs/latest/docs/references/api/#open-source-server-api-services
+```
+
 ## 1. 背景
 
 当前已完成的基础能力：

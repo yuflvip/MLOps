@@ -112,7 +112,7 @@ def test_training_command_service_returns_warning_when_queue_has_no_online_agent
     assert clearml_client.created_payloads[0]["template_name"] == "yolo-default"
     assert clearml_client.created_payloads[0]["queue"] == "queue_train_gpu"
     assert clearml_client.created_payloads[0]["parameters"]["epochs"] == 5
-    assert clearml_client.created_payloads[0]["entrypoint"] == "generic_clearml_wrapper.py"
+    assert clearml_client.created_payloads[0].get("entrypoint") is None
     assert clearml_client.created_payloads[0]["runtime"]["script_path"] == "train.py"
     assert clearml_client.created_payloads[0]["execution_defaults"] == {
         "nproc_per_node": 1,
@@ -142,7 +142,7 @@ def test_training_command_service_propagates_convnext_runtime_context():
     session.close()
 
     assert result["task"]["template_name"] == "convnext-default"
-    assert clearml_client.created_payloads[0]["entrypoint"] == "generic_clearml_wrapper.py"
+    assert clearml_client.created_payloads[0].get("entrypoint") is None
     assert clearml_client.created_payloads[0]["queue"] == "train_convnext"
     assert clearml_client.created_payloads[0]["project"] == "classify_vehicle_10class"
     assert clearml_client.created_payloads[0]["runtime"]["script_path"] == (

@@ -2,12 +2,24 @@ from typing import Any, Dict, List, Mapping
 
 from app.domain.common.exceptions import TemplateValidationError
 
+ALLOWED_RUNTIME_ADAPTERS = {"generic", "training", "onnx_export"}
+
 
 def validate_template_payload(template: Mapping[str, Any]) -> None:
     if not isinstance(template, Mapping):
         raise TemplateValidationError("Template entry must be a mapping")
     if not template.get("name"):
         raise TemplateValidationError("Template entry must define a non-empty name")
+    runtime = template.get("runtime")
+    if not isinstance(runtime, Mapping):
+        raise TemplateValidationError("Template entry must define 'runtime' as a mapping")
+    adapter = runtime.get("adapter")
+    if not isinstance(adapter, str) or not adapter:
+        raise TemplateValidationError("Template runtime.adapter must be a non-empty string")
+    if adapter not in ALLOWED_RUNTIME_ADAPTERS:
+        raise TemplateValidationError(
+            "Template runtime.adapter '%s' is not supported" % adapter
+        )
 
 
 def validate_templates_document(document: Any) -> List[Dict[str, Any]]:

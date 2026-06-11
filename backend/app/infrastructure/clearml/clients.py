@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import re
 import threading
+from pathlib import PurePosixPath
 from typing import Any, Dict, List, Protocol
 
 import httpx
@@ -73,11 +73,15 @@ class HttpClearMLClient:
         access_key: str,
         secret_key: str,
         timeout_seconds: int = 30,
+        runner_working_dir: str = "/home/yufl/workspace-2026/MLOps/backend/scripts",
+        runner_entrypoint: str = "entrypoint.py",
     ) -> None:
         self._api_base_url = api_base_url.rstrip("/")
         self._access_key = access_key
         self._secret_key = secret_key
         self._timeout_seconds = timeout_seconds
+        self._runner_working_dir = runner_working_dir
+        self._runner_entrypoint = runner_entrypoint
         self._bearer_token: str | None = None
         self._token_lock = threading.Lock()
         self._client = httpx.Client(
@@ -165,6 +169,7 @@ class HttpClearMLClient:
         )
 
         task_type = "testing" if payload.get("target_format") else "training"
+        runner_entrypoint = self._resolve_runner_entrypoint_path()
         request_payload: Dict[str, Any] = {
             "name": str(payload["name"]),
             "type": task_type,
@@ -173,9 +178,9 @@ class HttpClearMLClient:
             },
             "script": {
                 "binary": "python",
-                "entry_point": str(payload.get("entrypoint") or "generic_clearml_wrapper.py"),
-                "working_dir": str(merged_runtime.get("working_dir") or ""),
-                "diff": _load_wrapper_source(),
+                "entry_point": runner_entrypoint,
+                "working_dir": ".",
+                "diff": "",
             },
             "hyperparams": hyperparams,
         }
@@ -196,6 +201,20 @@ class HttpClearMLClient:
         if payload.get("tags"):
             request_payload["tags"] = list(payload["tags"])
         return request_payload
+
+    def _resolve_runner_entrypoint_path(self) -> str:
+        entrypoint = self._runner_entrypoint.strip()
+        if not entrypoint:
+            raise RuntimeError("ClearML runner entrypoint must be configured")
+        if entrypoint.startswith("/"):
+            return entrypoint
+
+        working_dir = self._runner_working_dir.strip()
+        if not working_dir.startswith("/"):
+            raise RuntimeError(
+                "ClearML runner working directory must be an absolute path"
+            )
+        return str(PurePosixPath(working_dir) / entrypoint)
 
     def _resolve_queue_id(self, queue_name: Any) -> str | None:
         if not isinstance(queue_name, str) or not queue_name:
@@ -372,10 +391,3 @@ def _extract_task_id(response: Dict[str, Any]) -> str | None:
     if isinstance(task, dict) and isinstance(task.get("id"), str):
         return task["id"]
     return None
-
-
-def _load_wrapper_source() -> str:
-    wrapper_path = Path(__file__).resolve().parents[3] / "scripts" / "generic_clearml_wrapper.py"
-    if not wrapper_path.exists():
-        raise FileNotFoundError(f"ClearML wrapper source not found: {wrapper_path}")
-    return wrapper_path.read_text(encoding="utf-8")

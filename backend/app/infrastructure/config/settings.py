@@ -50,6 +50,8 @@ class ClearMLSettings(BaseModel):
     access_key: str = ""
     secret_key: str = ""
     timeout_seconds: int = 30
+    runner_working_dir: str = "/home/yufl/workspace-2026/MLOps/backend/scripts"
+    runner_entrypoint: str = "entrypoint.py"
 
 
 class SchedulerSettings(BaseModel):
