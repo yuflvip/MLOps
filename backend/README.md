@@ -49,6 +49,7 @@ cd backend
 
 - `/mlops/system/health`
 - `/mlops/system/runtime`
+- `/mlops/datasets`
 - `/mlops/training/create-meta`
 - `/mlops/training`
 - `/mlops/training/{task_id}`
@@ -86,6 +87,48 @@ export MLOPS_BACKEND_CONFIG_PATH=./config/app.yaml
 - `http://127.0.0.1:18087/docs`
 - `http://127.0.0.1:18087/openapi.json`
 
+### 数据集管理接口
+
+当前后端已提供数据集管理菜单所需的基础接口：
+
+- `GET /mlops/datasets`
+  返回数据集列表
+- `GET /mlops/datasets/{dataset_id}`
+  返回单条数据集详情
+- `POST /mlops/datasets`
+  创建数据集
+- `PUT /mlops/datasets/{dataset_id}`
+  修改数据集
+- `DELETE /mlops/datasets/{dataset_id}`
+  物理删除数据集
+
+数据集接口的主要字段约定：
+
+- `name`
+  数据集名称，唯一
+- `path`
+  本地绝对路径，唯一
+- `task_type`
+  任务类型，可空，由前端页面下拉框提交
+- `class_names`
+  类别名称数组，直接返回给前端，不额外派生 `class_count`
+- `description`
+  描述/备注，可空
+- `created_at` / `updated_at`
+  创建时间和修改时间
+
+示例创建请求：
+
+```json
+{
+  "name": "vehicle-10class",
+  "path": "/mnt/datasets/vehicle_cls",
+  "task_type": "classification",
+  "class_names": ["car", "bus", "truck"],
+  "description": "车型分类基线数据集"
+}
+```
+
 ### 执行数据库迁移
 
 如果需要手动跑 Alembic：
@@ -102,9 +145,9 @@ cd backend
 - `PT -> ONNX` 导出任务作为训练任务的 `child task`
 - ClearML 负责任务执行、日志、指标和产物
 - 自研后端负责统一入口、业务状态和数据展示
-- 训练和导出模板统一通过远端 `generic_clearml_wrapper.py` 启动，wrapper 在 `convnext-env` 里读取 ClearML 任务的 `Args` 和 `Runtime` 两个 section
+- 训练和导出任务统一通过远端挂载目录中的 `entrypoint.py` 启动，脚本在 `convnext-env` 里读取 ClearML 任务的 `Args` 和 `Runtime` 两个 section
 - `Runtime.execution_params` 只给 wrapper 用，不会转发给真实训练/导出脚本
 - `Runtime.artifacts` 定义需要在任务成功后上传到 ClearML 的产物文件路径、名称和元信息
-- `convnext-default` 的真实训练脚本仍然是 `/mnt/sdb/yufl/cnn/ConvNext/convnext_cls/tools/train.py`
+- `convnext-default` 的真实训练脚本仍然由模板中的 `Runtime.script_path` 决定
 - 像 `nproc_per_node`、`cuda_visible_devices` 这类执行参数可以和业务参数一起从页面传入，但会以 `Runtime.execution_params` 的形式下发
 - 训练创建请求建议使用 `params` 和 `execution_params` 分组，前者放业务参数，后者放执行参数

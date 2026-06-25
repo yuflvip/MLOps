@@ -1,6 +1,7 @@
 from app.infrastructure.db.base import Base
 from app.infrastructure.db.models import (
     JobRunModel,
+    RuntimeEnvironmentModel,
     SyncCheckpointModel,
     TaskArtifactModel,
     TaskModel,
@@ -14,6 +15,7 @@ from app.infrastructure.db.session import (
 __all__ = [
     "Base",
     "JobRunModel",
+    "RuntimeEnvironmentModel",
     "SyncCheckpointModel",
     "TaskArtifactModel",
     "TaskModel",

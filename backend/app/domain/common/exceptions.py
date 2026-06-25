@@ -12,3 +12,39 @@ class TemplateValidationError(DomainError):
 
 class ClearMLAdapterError(DomainError):
     """Raised when ClearML adapter operations cannot be completed."""
+
+
+class DatasetNotFoundError(DomainError):
+    """Raised when a dataset record cannot be found."""
+
+
+class DatasetConflictError(DomainError):
+    """Raised when a dataset name or path conflicts with an existing record."""
+
+
+class DatasetValidationError(DomainError):
+    """Raised when a dataset payload is invalid."""
+
+
+class ProjectNotFoundError(DomainError):
+    """Raised when a project record cannot be found."""
+
+
+class ProjectConflictError(DomainError):
+    """Raised when a project key conflicts with an existing record."""
+
+
+class ProjectValidationError(DomainError):
+    """Raised when a project payload is invalid."""
+
+
+class RuntimeEnvironmentNotFoundError(DomainError):
+    """Raised when a runtime environment record cannot be found."""
+
+
+class RuntimeEnvironmentConflictError(DomainError):
+    """Raised when a runtime environment key conflicts with an existing record."""
+
+
+class RuntimeEnvironmentValidationError(DomainError):
+    """Raised when a runtime environment payload is invalid."""

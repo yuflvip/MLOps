@@ -38,7 +38,17 @@
 
 <script setup lang="ts">
 import { useRouter, useRoute } from 'vue-router'
-import { Aim, Document, Box, User, Fold, Expand } from '@element-plus/icons-vue'
+import {
+  Aim,
+  Briefcase,
+  Document,
+  FolderOpened,
+  Box,
+  User,
+  Fold,
+  Expand,
+  Setting,
+} from '@element-plus/icons-vue'
 import { useAppStore } from '@/shared/stores/app'
 
 const router = useRouter()
@@ -47,6 +57,9 @@ const appStore = useAppStore()
 
 const navItems = [
   { path: '/training', label: '训练任务', icon: Aim },
+  { path: '/projects', label: '项目管理', icon: Briefcase },
+  { path: '/datasets', label: '数据集管理', icon: FolderOpened },
+  { path: '/runtime-environments', label: '运行环境管理', icon: Setting },
   { path: '/template', label: '模板管理', icon: Document },
 ]
 

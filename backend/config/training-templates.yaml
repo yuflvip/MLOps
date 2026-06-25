@@ -25,8 +25,8 @@ templates:
     runtime:
       adapter: "training"
       launcher: "torchrun"
-      script_path: "/mnt/yolo_tool/build/convnext_cls/tools/train.py"
-      working_dir: "/mnt/yolo_tool/build/convnext_cls"
+      script_path: "/home/yufl/workspace-2026/md_ai_workspace/convnext_cls/tools/train.py"
+      working_dir: "/home/yufl/workspace-2026/md_ai_workspace/convnext_cls"
       env:
         NCCL_P2P_DISABLE: 0
         NCCL_IB_DISABLE: 1

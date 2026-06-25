@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.infrastructure.db.base import Base
@@ -142,4 +142,76 @@ class JobRunModel(Base):
         DateTime,
         nullable=False,
         default=utcnow,
+    )
+
+
+class DatasetModel(Base):
+    __tablename__ = "datasets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
+    path: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    task_type: Mapped[Optional[str]] = mapped_column(String(32), nullable=True, index=True)
+    class_names_json: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=utcnow,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=utcnow,
+        onupdate=utcnow,
+    )
+
+
+class ProjectModel(Base):
+    __tablename__ = "projects"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    project: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    dataset_ids_json: Mapped[str] = mapped_column(Text, nullable=False)
+    epochs: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    batch: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    imgsz: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=utcnow,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=utcnow,
+        onupdate=utcnow,
+    )
+
+
+class RuntimeEnvironmentModel(Base):
+    __tablename__ = "runtime_environments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    env_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    python_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    working_dir: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    docker_image: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    extra_env_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=utcnow,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=utcnow,
+        onupdate=utcnow,
     )

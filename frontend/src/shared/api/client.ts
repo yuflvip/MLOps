@@ -47,6 +47,18 @@ export async function apiPost<T, D = Record<string, unknown>>(url: string, data?
   return res.data.data
 }
 
+/** Typed PUT — returns data field from envelope */
+export async function apiPut<T, D = Record<string, unknown>>(url: string, data?: D): Promise<T> {
+  const res = await http.put<ApiEnvelope<T>>(url, data)
+  return res.data.data
+}
+
+/** Typed DELETE — returns data field from envelope */
+export async function apiDelete<T>(url: string): Promise<T> {
+  const res = await http.delete<ApiEnvelope<T>>(url)
+  return res.data.data
+}
+
 /** POST that returns full envelope (for warnings access) */
 export async function apiPostFull<T, D = Record<string, unknown>>(url: string, data?: D): Promise<ApiEnvelope<T>> {
   const res = await http.post<ApiEnvelope<T>>(url, data)

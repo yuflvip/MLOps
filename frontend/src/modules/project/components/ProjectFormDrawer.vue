@@ -1,0 +1,182 @@
+<template>
+  <el-drawer
+    :model-value="modelValue"
+    @update:model-value="$emit('update:modelValue', $event)"
+    :title="isEdit ? '编辑项目' : '新建项目'"
+    direction="rtl"
+    size="520px"
+    :close-on-click-modal="false"
+  >
+    <el-form
+      ref="formRef"
+      :model="form"
+      :rules="rules"
+      label-position="top"
+      @submit.prevent="handleSubmit"
+    >
+      <el-form-item label="Project" prop="project">
+        <el-input v-model="form.project" placeholder="输入唯一 project 标识" />
+      </el-form-item>
+
+      <el-form-item label="名称" prop="name">
+        <el-input v-model="form.name" placeholder="输入项目名称" />
+      </el-form-item>
+
+      <el-form-item label="绑定数据集" prop="dataset_ids">
+        <el-select
+          v-model="form.dataset_ids"
+          multiple
+          filterable
+          placeholder="请选择要绑定的数据集"
+          style="width: 100%"
+        >
+          <el-option
+            v-for="dataset in datasetOptions"
+            :key="dataset.id"
+            :label="dataset.name"
+            :value="dataset.id"
+          />
+        </el-select>
+      </el-form-item>
+
+      <div class="param-grid">
+        <el-form-item label="epochs">
+          <el-input-number v-model="form.epochs" :min="1" controls-position="right" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="batch">
+          <el-input-number v-model="form.batch" :min="1" controls-position="right" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="imgsz">
+          <el-input-number v-model="form.imgsz" :min="1" controls-position="right" style="width: 100%" />
+        </el-form-item>
+      </div>
+
+      <el-form-item label="描述 / 备注">
+        <el-input
+          v-model="form.description"
+          type="textarea"
+          :rows="4"
+          placeholder="输入备注信息"
+        />
+      </el-form-item>
+
+      <div class="drawer-footer">
+        <el-button @click="$emit('update:modelValue', false)">取消</el-button>
+        <el-button type="primary" :loading="submitting" @click="handleSubmit">
+          {{ isEdit ? '保存修改' : '创建项目' }}
+        </el-button>
+      </div>
+    </el-form>
+  </el-drawer>
+</template>
+
+<script setup lang="ts">
+import { computed, reactive, ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
+import {
+  createProject,
+  updateProject,
+  type ProjectFormPayload,
+  type ProjectItem,
+} from '@/shared/api/modules/projects'
+import type { DatasetItem } from '@/shared/api/modules/datasets'
+
+const modelValue = defineModel<boolean>({ required: true })
+
+const props = defineProps<{
+  projectItem?: ProjectItem | null
+  datasets: DatasetItem[]
+}>()
+
+const emit = defineEmits<{
+  (e: 'saved'): void
+}>()
+
+const formRef = ref<FormInstance>()
+const submitting = ref(false)
+
+const isEdit = computed(() => Boolean(props.projectItem))
+const datasetOptions = computed(() => props.datasets)
+
+const form = reactive({
+  project: '',
+  name: '',
+  description: '',
+  dataset_ids: [] as number[],
+  epochs: undefined as number | undefined,
+  batch: undefined as number | undefined,
+  imgsz: undefined as number | undefined,
+})
+
+const rules: FormRules<typeof form> = {
+  project: [{ required: true, message: '请输入 project 标识', trigger: 'blur' }],
+  name: [{ required: true, message: '请输入项目名称', trigger: 'blur' }],
+  dataset_ids: [{ required: true, message: '请选择至少一个数据集', trigger: 'change' }],
+}
+
+watch(
+  () => [modelValue.value, props.projectItem] as const,
+  ([visible, projectItem]) => {
+    if (!visible) return
+    form.project = projectItem?.project || ''
+    form.name = projectItem?.name || ''
+    form.description = projectItem?.description || ''
+    form.dataset_ids = projectItem?.dataset_ids ? [...projectItem.dataset_ids] : []
+    form.epochs = projectItem?.epochs ?? undefined
+    form.batch = projectItem?.batch ?? undefined
+    form.imgsz = projectItem?.imgsz ?? undefined
+  },
+  { immediate: true },
+)
+
+function toPayload(): ProjectFormPayload {
+  return {
+    project: form.project.trim(),
+    name: form.name.trim(),
+    description: form.description.trim() || null,
+    dataset_ids: [...form.dataset_ids],
+    epochs: form.epochs ?? null,
+    batch: form.batch ?? null,
+    imgsz: form.imgsz ?? null,
+  }
+}
+
+async function handleSubmit() {
+  if (!formRef.value) return
+  await formRef.value.validate()
+
+  submitting.value = true
+  try {
+    const payload = toPayload()
+    if (isEdit.value && props.projectItem) {
+      await updateProject(props.projectItem.id, payload)
+      ElMessage.success('项目已更新')
+    } else {
+      await createProject(payload)
+      ElMessage.success('项目已创建')
+    }
+    modelValue.value = false
+    emit('saved')
+  } finally {
+    submitting.value = false
+  }
+}
+</script>
+
+<style scoped>
+.drawer-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.param-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+</style>

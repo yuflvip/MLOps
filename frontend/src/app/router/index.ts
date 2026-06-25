@@ -19,6 +19,22 @@ const routes: RouteRecordRaw[] = [
         props: true,
       },
       {
+        path: 'projects',
+        name: 'ProjectList',
+        component: () => import('@/modules/project/components/ProjectListPage.vue'),
+      },
+      {
+        path: 'datasets',
+        name: 'DatasetList',
+        component: () => import('@/modules/dataset/components/DatasetListPage.vue'),
+      },
+      {
+        path: 'runtime-environments',
+        name: 'RuntimeEnvironmentList',
+        component: () =>
+          import('@/modules/runtime-environment/components/RuntimeEnvironmentListPage.vue'),
+      },
+      {
         path: 'template',
         name: 'TemplateList',
         component: () => import('@/modules/template/components/TemplateListPage.vue'),

@@ -1,6 +1,11 @@
 from app.application.services.conversion_command_service import (
     ConversionCommandService,
 )
+from app.application.services.dataset_service import DatasetService
+from app.application.services.project_service import ProjectService
+from app.application.services.runtime_environment_service import (
+    RuntimeEnvironmentService,
+)
 from app.application.services.scheduler_service import SchedulerService
 from app.application.services.task_status_sync_service import TaskStatusSyncService
 from app.application.services.task_query_service import TaskQueryService
@@ -11,6 +16,9 @@ from app.application.services.training_command_service import (
 
 __all__ = [
     "ConversionCommandService",
+    "DatasetService",
+    "ProjectService",
+    "RuntimeEnvironmentService",
     "SchedulerService",
     "TaskStatusSyncService",
     "TaskQueryService",
