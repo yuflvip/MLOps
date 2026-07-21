@@ -29,6 +29,6 @@ clearml:
   runner_entrypoint: "entrypoint.py"
 
 scheduler:
-  enabled: true
+  enabled: false
   timezone: "UTC"
-  task_status_sync_interval_seconds: 5
+  task_status_sync_interval_seconds: 30

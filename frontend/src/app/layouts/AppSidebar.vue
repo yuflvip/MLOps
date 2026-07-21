@@ -57,14 +57,14 @@ const appStore = useAppStore()
 
 const navItems = [
   { path: '/training', label: '训练任务', icon: Aim },
-  { path: '/projects', label: '项目管理', icon: Briefcase },
+  { path: '/projects', label: '模型族管理', icon: Briefcase },
   { path: '/datasets', label: '数据集管理', icon: FolderOpened },
   { path: '/runtime-environments', label: '运行环境管理', icon: Setting },
   { path: '/template', label: '模板管理', icon: Document },
+  { path: '/model-registry', label: '模型仓库', icon: Box },
 ]
 
 const placeholderItems = [
-  { path: '/model-registry', label: '模型仓库', icon: Box },
   { path: '/auth', label: '用户管理', icon: User },
 ]
 

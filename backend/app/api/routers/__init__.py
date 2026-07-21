@@ -12,6 +12,8 @@ from app.api.errors.http import (
     DATASET_CONFLICT_CODE,
     DATASET_NOT_FOUND_CODE,
     DOMAIN_ERROR_CODE,
+    EXP_CONFLICT_CODE,
+    EXP_NOT_FOUND_CODE,
     PROJECT_CONFLICT_CODE,
     PROJECT_NOT_FOUND_CODE,
     RUNTIME_ENVIRONMENT_CONFLICT_CODE,
@@ -22,6 +24,7 @@ from app.api.schemas.common import ResponseEnvelope
 from app.application.services import (
     ConversionCommandService,
     DatasetService,
+    ExpService,
     ProjectService,
     RuntimeEnvironmentService,
     SchedulerService,
@@ -35,6 +38,8 @@ from app.domain.common.exceptions import (
     DatasetConflictError,
     DatasetNotFoundError,
     DomainError,
+    ExpConflictError,
+    ExpNotFoundError,
     ProjectConflictError,
     ProjectNotFoundError,
     RuntimeEnvironmentConflictError,
@@ -44,6 +49,7 @@ from app.domain.common.exceptions import (
 from app.infrastructure.clearml import ClearMLAdapter
 from app.infrastructure.repositories import (
     DatasetRepository,
+    ExpRepository,
     ProjectRepository,
     RuntimeEnvironmentRepository,
     TaskRepository,
@@ -54,6 +60,7 @@ def install_routers(app: FastAPI, container: ApplicationContainer) -> None:
     from app.api.routers.clearml import router as clearml_router
     from app.api.routers.conversion import router as conversion_router
     from app.api.routers.datasets import router as dataset_router
+    from app.api.routers.exps import router as exp_router
     from app.api.routers.projects import router as project_router
     from app.api.routers.runtime_environments import router as runtime_environment_router
     from app.api.routers.system import router as system_router
@@ -61,6 +68,7 @@ def install_routers(app: FastAPI, container: ApplicationContainer) -> None:
 
     api_router = APIRouter()
     api_router.include_router(dataset_router)
+    api_router.include_router(exp_router)
     api_router.include_router(project_router)
     api_router.include_router(runtime_environment_router)
     api_router.include_router(training_router)
@@ -95,6 +103,10 @@ def raise_api_error_for_domain_error(exc: DomainError) -> None:
         raise APIError(status_code=404, code=PROJECT_NOT_FOUND_CODE, message=str(exc))
     if isinstance(exc, ProjectConflictError):
         raise APIError(status_code=409, code=PROJECT_CONFLICT_CODE, message=str(exc))
+    if isinstance(exc, ExpNotFoundError):
+        raise APIError(status_code=404, code=EXP_NOT_FOUND_CODE, message=str(exc))
+    if isinstance(exc, ExpConflictError):
+        raise APIError(status_code=409, code=EXP_CONFLICT_CODE, message=str(exc))
     if isinstance(exc, RuntimeEnvironmentNotFoundError):
         raise APIError(
             status_code=404,
@@ -169,13 +181,32 @@ async def get_dataset_service(
 
 
 async def get_project_service(
-    project_repository: ProjectRepository = Depends(get_project_repository),
-    dataset_repository: DatasetRepository = Depends(get_dataset_repository),
-) -> ProjectService:
-    return ProjectService(
-        project_repository=project_repository,
-        dataset_repository=dataset_repository,
-    )
+    services: ApplicationContainer = Depends(get_container),
+) -> Generator[ProjectService, None, None]:
+    # Project validation reads datasets before writing the project.  Both
+    # repositories must use one transaction: two SQLite connections here can
+    # make the read transaction block its own write commit.
+    session = services.session_factory()
+    try:
+        yield ProjectService(
+            project_repository=ProjectRepository(session),
+            dataset_repository=DatasetRepository(session),
+        )
+    finally:
+        session.close()
+
+
+async def get_exp_service(
+    services: ApplicationContainer = Depends(get_container),
+) -> Generator[ExpService, None, None]:
+    session = services.session_factory()
+    try:
+        yield ExpService(
+            exp_repository=ExpRepository(session),
+            project_repository=ProjectRepository(session),
+        )
+    finally:
+        session.close()
 
 
 async def get_runtime_environment_service(
@@ -229,6 +260,7 @@ __all__ = [
     "get_clearml_adapter",
     "get_conversion_command_service",
     "get_dataset_service",
+    "get_exp_service",
     "get_project_service",
     "get_runtime_environment_service",
     "get_request_context",

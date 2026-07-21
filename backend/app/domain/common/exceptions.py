@@ -38,6 +38,18 @@ class ProjectValidationError(DomainError):
     """Raised when a project payload is invalid."""
 
 
+class ExpNotFoundError(DomainError):
+    """Raised when an experiment record cannot be found."""
+
+
+class ExpConflictError(DomainError):
+    """Raised when an experiment path or version already exists."""
+
+
+class ExpValidationError(DomainError):
+    """Raised when an experiment operation is invalid."""
+
+
 class RuntimeEnvironmentNotFoundError(DomainError):
     """Raised when a runtime environment record cannot be found."""
 

@@ -93,10 +93,55 @@ const form = reactive({
   description: '',
 })
 
+function parseClassNames(value: string): string[] {
+  return value
+    .split('\n')
+    .map(item => item.trim())
+    .filter(Boolean)
+}
+
 const rules: FormRules<typeof form> = {
-  name: [{ required: true, message: '请输入数据集名称', trigger: 'blur' }],
-  path: [{ required: true, message: '请输入本地绝对路径', trigger: 'blur' }],
-  class_names_text: [{ required: true, message: '请输入分类类别', trigger: 'blur' }],
+  name: [
+    {
+      validator: (_rule, value: string, callback) => {
+        if (!value.trim()) {
+          callback(new Error('请输入数据集名称'))
+          return
+        }
+        callback()
+      },
+      trigger: 'blur',
+    },
+  ],
+  path: [
+    {
+      validator: (_rule, value: string, callback) => {
+        const normalized = value.trim()
+        if (!normalized) {
+          callback(new Error('请输入本地绝对路径'))
+          return
+        }
+        if (!normalized.startsWith('/')) {
+          callback(new Error('请输入 Linux 绝对路径，例如 /mnt/datasets/vehicle_cls'))
+          return
+        }
+        callback()
+      },
+      trigger: 'blur',
+    },
+  ],
+  class_names_text: [
+    {
+      validator: (_rule, value: string, callback) => {
+        if (parseClassNames(value).length === 0) {
+          callback(new Error('请至少输入一个分类类别'))
+          return
+        }
+        callback()
+      },
+      trigger: 'blur',
+    },
+  ],
 }
 
 watch(
@@ -113,10 +158,7 @@ watch(
 )
 
 function toPayload(): DatasetFormPayload {
-  const classNames = form.class_names_text
-    .split('\n')
-    .map(item => item.trim())
-    .filter(Boolean)
+  const classNames = parseClassNames(form.class_names_text)
 
   return {
     name: form.name.trim(),
@@ -128,7 +170,7 @@ function toPayload(): DatasetFormPayload {
 }
 
 async function handleSubmit() {
-  if (!formRef.value) return
+  if (!formRef.value || submitting.value) return
   await formRef.value.validate()
 
   submitting.value = true

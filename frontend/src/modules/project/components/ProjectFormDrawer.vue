@@ -2,7 +2,7 @@
   <el-drawer
     :model-value="modelValue"
     @update:model-value="$emit('update:modelValue', $event)"
-    :title="isEdit ? '编辑项目' : '新建项目'"
+    :title="isEdit ? '编辑模型族' : '新建模型族'"
     direction="rtl"
     size="520px"
     :close-on-click-modal="false"
@@ -14,12 +14,19 @@
       label-position="top"
       @submit.prevent="handleSubmit"
     >
-      <el-form-item label="Project" prop="project">
-        <el-input v-model="form.project" placeholder="输入唯一 project 标识" />
+      <el-form-item label="模型族标识" prop="project">
+        <el-input v-model="form.project" placeholder="输入唯一模型族标识" />
       </el-form-item>
 
       <el-form-item label="名称" prop="name">
-        <el-input v-model="form.name" placeholder="输入项目名称" />
+        <el-input v-model="form.name" placeholder="输入模型族名称" />
+      </el-form-item>
+
+      <el-form-item label="实验根路径" prop="exp_root_path">
+        <el-input
+          v-model="form.exp_root_path"
+          placeholder="例如 /mnt/training-results/vehicle-color"
+        />
       </el-form-item>
 
       <el-form-item label="绑定数据集" prop="dataset_ids">
@@ -63,7 +70,7 @@
       <div class="drawer-footer">
         <el-button @click="$emit('update:modelValue', false)">取消</el-button>
         <el-button type="primary" :loading="submitting" @click="handleSubmit">
-          {{ isEdit ? '保存修改' : '创建项目' }}
+          {{ isEdit ? '保存修改' : '创建模型族' }}
         </el-button>
       </div>
     </el-form>
@@ -103,6 +110,7 @@ const form = reactive({
   project: '',
   name: '',
   description: '',
+  exp_root_path: '',
   dataset_ids: [] as number[],
   epochs: undefined as number | undefined,
   batch: undefined as number | undefined,
@@ -110,8 +118,21 @@ const form = reactive({
 })
 
 const rules: FormRules<typeof form> = {
-  project: [{ required: true, message: '请输入 project 标识', trigger: 'blur' }],
-  name: [{ required: true, message: '请输入项目名称', trigger: 'blur' }],
+  project: [{ required: true, message: '请输入模型族标识', trigger: 'blur' }],
+  name: [{ required: true, message: '请输入模型族名称', trigger: 'blur' }],
+  exp_root_path: [
+    { required: true, message: '请输入实验根路径', trigger: 'blur' },
+    {
+      validator: (_rule, value: string, callback) => {
+        if (value.trim() && !value.trim().startsWith('/')) {
+          callback(new Error('实验根路径必须是绝对路径'))
+          return
+        }
+        callback()
+      },
+      trigger: 'blur',
+    },
+  ],
   dataset_ids: [{ required: true, message: '请选择至少一个数据集', trigger: 'change' }],
 }
 
@@ -122,6 +143,7 @@ watch(
     form.project = projectItem?.project || ''
     form.name = projectItem?.name || ''
     form.description = projectItem?.description || ''
+    form.exp_root_path = projectItem?.exp_root_path || ''
     form.dataset_ids = projectItem?.dataset_ids ? [...projectItem.dataset_ids] : []
     form.epochs = projectItem?.epochs ?? undefined
     form.batch = projectItem?.batch ?? undefined
@@ -135,6 +157,7 @@ function toPayload(): ProjectFormPayload {
     project: form.project.trim(),
     name: form.name.trim(),
     description: form.description.trim() || null,
+    exp_root_path: form.exp_root_path.trim(),
     dataset_ids: [...form.dataset_ids],
     epochs: form.epochs ?? null,
     batch: form.batch ?? null,
@@ -151,10 +174,10 @@ async function handleSubmit() {
     const payload = toPayload()
     if (isEdit.value && props.projectItem) {
       await updateProject(props.projectItem.id, payload)
-      ElMessage.success('项目已更新')
+      ElMessage.success('模型族已更新')
     } else {
       await createProject(payload)
-      ElMessage.success('项目已创建')
+      ElMessage.success('模型族已创建')
     }
     modelValue.value = false
     emit('saved')

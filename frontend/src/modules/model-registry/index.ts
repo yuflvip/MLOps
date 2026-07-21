@@ -1,2 +1,1 @@
-// Model Registry module — placeholder for future implementation
-// Will be activated when backend model_registry API is ready
+export { default as ModelRegistryPage } from './components/ModelRegistryPage.vue'

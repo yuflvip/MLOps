@@ -6,6 +6,7 @@ export interface ProjectItem {
   project: string
   name: string
   description: string | null
+  exp_root_path: string | null
   dataset_ids: number[]
   epochs: number | null
   batch: number | null
@@ -25,6 +26,7 @@ export interface ProjectFormPayload {
   project: string
   name: string
   description?: string | null
+  exp_root_path: string
   dataset_ids: number[]
   epochs?: number | null
   batch?: number | null

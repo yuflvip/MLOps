@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from app.domain.common.exceptions import (
@@ -17,6 +18,7 @@ def _serialize_project(project: ProjectModel) -> Dict[str, Any]:
         "project": project.project,
         "name": project.name,
         "description": project.description,
+        "exp_root_path": project.exp_root_path,
         "dataset_ids": json.loads(project.dataset_ids_json),
         "epochs": project.epochs,
         "batch": project.batch,
@@ -69,6 +71,7 @@ class ProjectService:
         project: str,
         name: str,
         description: Optional[str],
+        exp_root_path: str,
         dataset_ids: List[int],
         epochs: Optional[int],
         batch: Optional[int],
@@ -78,6 +81,7 @@ class ProjectService:
             project=project,
             name=name,
             description=description,
+            exp_root_path=exp_root_path,
             dataset_ids=dataset_ids,
             epochs=epochs,
             batch=batch,
@@ -89,6 +93,7 @@ class ProjectService:
                 project=normalized["project"],
                 name=normalized["name"],
                 description=normalized["description"],
+                exp_root_path=normalized["exp_root_path"],
                 dataset_ids_json=json.dumps(normalized["dataset_ids"], ensure_ascii=True),
                 epochs=normalized["epochs"],
                 batch=normalized["batch"],
@@ -105,6 +110,7 @@ class ProjectService:
         project: str,
         name: str,
         description: Optional[str],
+        exp_root_path: str,
         dataset_ids: List[int],
         epochs: Optional[int],
         batch: Optional[int],
@@ -118,6 +124,7 @@ class ProjectService:
             project=project,
             name=name,
             description=description,
+            exp_root_path=exp_root_path,
             dataset_ids=dataset_ids,
             epochs=epochs,
             batch=batch,
@@ -127,6 +134,7 @@ class ProjectService:
         existing.project = normalized["project"]
         existing.name = normalized["name"]
         existing.description = normalized["description"]
+        existing.exp_root_path = normalized["exp_root_path"]
         existing.dataset_ids_json = json.dumps(normalized["dataset_ids"], ensure_ascii=True)
         existing.epochs = normalized["epochs"]
         existing.batch = normalized["batch"]
@@ -154,6 +162,7 @@ class ProjectService:
         project: str,
         name: str,
         description: Optional[str],
+        exp_root_path: str,
         dataset_ids: List[int],
         epochs: Optional[int],
         batch: Optional[int],
@@ -166,6 +175,12 @@ class ProjectService:
         normalized_name = name.strip()
         if not normalized_name:
             raise ProjectValidationError("Project name must not be empty")
+
+        normalized_exp_root_path = exp_root_path.strip()
+        if not normalized_exp_root_path:
+            raise ProjectValidationError("Project exp_root_path must not be empty")
+        if not Path(normalized_exp_root_path).is_absolute():
+            raise ProjectValidationError("Project exp_root_path must be an absolute path")
 
         if not isinstance(dataset_ids, list) or not dataset_ids:
             raise ProjectValidationError("Project dataset_ids must be a non-empty list")
@@ -197,6 +212,7 @@ class ProjectService:
             "project": normalized_project,
             "name": normalized_name,
             "description": normalized_description,
+            "exp_root_path": normalized_exp_root_path,
             "dataset_ids": normalized_dataset_ids,
             "epochs": normalized_epochs,
             "batch": normalized_batch,

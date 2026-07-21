@@ -8,6 +8,7 @@ class ProjectItem(BaseModel):
     project: str
     name: str
     description: Optional[str] = None
+    exp_root_path: Optional[str] = None
     dataset_ids: List[int]
     epochs: Optional[int] = None
     batch: Optional[int] = None
@@ -27,6 +28,7 @@ class ProjectCreateRequest(BaseModel):
     project: str
     name: str
     description: Optional[str] = None
+    exp_root_path: str
     dataset_ids: List[int]
     epochs: Optional[int] = None
     batch: Optional[int] = None

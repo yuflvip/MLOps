@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.infrastructure.db.base import Base
@@ -174,6 +174,7 @@ class ProjectModel(Base):
     project: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    exp_root_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     dataset_ids_json: Mapped[str] = mapped_column(Text, nullable=False)
     epochs: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     batch: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
@@ -188,6 +189,34 @@ class ProjectModel(Base):
         nullable=False,
         default=utcnow,
         onupdate=utcnow,
+    )
+
+
+class ExpModel(Base):
+    __tablename__ = "exps"
+    __table_args__ = (
+        UniqueConstraint("project_id", "relative_path", name="uq_exps_project_path"),
+        UniqueConstraint("project_id", "version", name="uq_exps_project_version"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    relative_path: Mapped[str] = mapped_column(Text, nullable=False)
+    resolved_path: Mapped[str] = mapped_column(Text, nullable=False)
+    review_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="pending_review", index=True
+    )
+    version: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    review_comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    imported_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=utcnow, onupdate=utcnow
     )
 
 

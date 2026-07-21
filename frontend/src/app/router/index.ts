@@ -42,8 +42,13 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'model-registry',
         name: 'ModelRegistry',
-        component: () => import('@/shared/components/PlaceholderPage.vue'),
-        props: { title: '模型仓库' },
+        component: () => import('@/modules/model-registry/components/ModelRegistryPage.vue'),
+      },
+      {
+        path: 'model-registry/exps/:id',
+        name: 'ExpDetail',
+        component: () => import('@/modules/model-registry/components/ExpDetailPage.vue'),
+        props: true,
       },
       {
         path: 'auth',

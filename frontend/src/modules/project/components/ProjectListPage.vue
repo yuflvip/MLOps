@@ -1,10 +1,10 @@
 <template>
   <div class="project-list-page">
-    <PageHeader title="项目管理" subtitle="维护项目标识与关联数据集">
+    <PageHeader title="模型族管理" subtitle="维护模型族标识与关联数据集">
       <template #actions>
         <el-button :icon="Refresh" circle @click="handleRefresh" />
         <el-button type="primary" @click="openCreateDrawer">
-          新建项目
+          新建模型族
         </el-button>
       </template>
     </PageHeader>
@@ -12,11 +12,11 @@
     <div class="filter-card glow-card">
       <el-form :inline="true" class="filter-form" @submit.prevent="handleSearch">
         <el-form-item class="inline-filter-item">
-          <span class="inline-filter-label">Project</span>
+          <span class="inline-filter-label">模型族标识</span>
           <el-input
             v-model="projectFilter"
             class="filter-input filter-input-project"
-            placeholder="按 project 查询"
+            placeholder="按模型族标识查询"
             clearable
             @keyup.enter="handleSearch"
           />
@@ -44,7 +44,7 @@
           {{ (page - 1) * pageSize + $index + 1 }}
         </template>
       </el-table-column>
-      <el-table-column prop="project" label="Project" min-width="180" show-overflow-tooltip />
+      <el-table-column prop="project" label="模型族标识" min-width="180" show-overflow-tooltip />
       <el-table-column prop="name" label="名称" min-width="160" show-overflow-tooltip />
       <el-table-column prop="epochs" label="epochs" width="96" />
       <el-table-column prop="batch" label="batch" width="96" />
@@ -159,7 +159,7 @@ function openEditDrawer(projectItem: unknown) {
 async function handleDelete(projectItem: unknown) {
   const item = projectItem as ProjectItem
   await ElMessageBox.confirm(
-    `确认物理删除项目「${item.name}」吗？此操作不可恢复。`,
+    `确认物理删除模型族「${item.name}」吗？此操作不可恢复。`,
     '删除确认',
     {
       type: 'warning',

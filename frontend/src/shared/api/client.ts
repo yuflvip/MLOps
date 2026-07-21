@@ -13,6 +13,7 @@ const http: AxiosInstance = axios.create({
 // Response interceptor — unwrap envelope
 http.interceptors.response.use(
   (response) => {
+    if (response.config.responseType === 'blob') return response
     const body = response.data as ApiEnvelope<unknown>
     if (body.code !== 0) {
       const msg = body.message || '请求失败'
