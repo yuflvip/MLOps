@@ -3,7 +3,7 @@ from typing import List, Optional, Tuple
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.infrastructure.db.models import ExpModel
+from app.infrastructure.db.models import ExpModel, ProjectModel
 
 
 class ExpRepository:
@@ -50,6 +50,7 @@ class ExpRepository:
         page_size: int,
         project_id: Optional[int] = None,
         review_status: Optional[str] = None,
+        model_type: Optional[str] = None,
     ) -> Tuple[List[ExpModel], int]:
         stmt = select(ExpModel)
         count_stmt = select(func.count()).select_from(ExpModel)
@@ -59,6 +60,13 @@ class ExpRepository:
         if review_status:
             stmt = stmt.where(ExpModel.review_status == review_status)
             count_stmt = count_stmt.where(ExpModel.review_status == review_status)
+        if model_type:
+            stmt = stmt.join(ProjectModel, ProjectModel.id == ExpModel.project_id).where(
+                ProjectModel.model_type == model_type
+            )
+            count_stmt = count_stmt.join(
+                ProjectModel, ProjectModel.id == ExpModel.project_id
+            ).where(ProjectModel.model_type == model_type)
         offset = max(page - 1, 0) * page_size
         stmt = stmt.order_by(ExpModel.id.desc()).offset(offset).limit(page_size)
         return list(self._session.scalars(stmt)), int(self._session.scalar(count_stmt) or 0)

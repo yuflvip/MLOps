@@ -22,6 +22,19 @@
           />
         </el-form-item>
         <el-form-item class="inline-filter-item">
+          <span class="inline-filter-label">模型类型</span>
+          <el-select
+            v-model="modelTypeFilter"
+            class="filter-input filter-input-type"
+            placeholder="全部类型"
+            clearable
+          >
+            <el-option label="分类器" value="classification" />
+            <el-option label="检测器" value="detection" />
+            <el-option label="轮廓分割" value="segmentation" />
+          </el-select>
+        </el-form-item>
+        <el-form-item class="inline-filter-item">
           <span class="inline-filter-label">名称</span>
           <el-input
             v-model="nameFilter"
@@ -46,6 +59,12 @@
       </el-table-column>
       <el-table-column prop="project" label="模型族标识" min-width="180" show-overflow-tooltip />
       <el-table-column prop="name" label="名称" min-width="160" show-overflow-tooltip />
+      <el-table-column label="模型类型" width="120">
+        <template #default="{ row }">{{ modelTypeLabel(row.model_type) }}</template>
+      </el-table-column>
+      <el-table-column prop="model_architecture" label="模型架构" width="130">
+        <template #default="{ row }">{{ row.model_architecture || '-' }}</template>
+      </el-table-column>
       <el-table-column prop="epochs" label="epochs" width="96" />
       <el-table-column prop="batch" label="batch" width="96" />
       <el-table-column prop="imgsz" label="imgsz" width="96" />
@@ -121,6 +140,7 @@ const {
   total,
   projectFilter,
   nameFilter,
+  modelTypeFilter,
   onPageChange,
   onSizeChange,
   fetchList,
@@ -139,6 +159,13 @@ function resolveDatasets(ids: number[]) {
   return ids
     .map(id => datasetMap.value[id])
     .filter((item): item is DatasetItem => Boolean(item))
+}
+
+function modelTypeLabel(value: string | null) {
+  if (value === 'classification') return '分类器'
+  if (value === 'detection') return '检测器'
+  if (value === 'segmentation') return '轮廓分割'
+  return '-'
 }
 
 async function fetchDatasets() {
@@ -241,6 +268,10 @@ onMounted(() => {
 
 :deep(.filter-input-name) {
   width: 220px;
+}
+
+:deep(.filter-input-type) {
+  width: 160px;
 }
 
 .inline-filter-label {

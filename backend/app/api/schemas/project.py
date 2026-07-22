@@ -7,6 +7,8 @@ class ProjectItem(BaseModel):
     id: int
     project: str
     name: str
+    model_type: Optional[str] = None
+    model_architecture: Optional[str] = None
     description: Optional[str] = None
     exp_root_path: Optional[str] = None
     dataset_ids: List[int]
@@ -27,6 +29,8 @@ class ProjectListData(BaseModel):
 class ProjectCreateRequest(BaseModel):
     project: str
     name: str
+    model_type: str
+    model_architecture: str
     description: Optional[str] = None
     exp_root_path: str
     dataset_ids: List[int]

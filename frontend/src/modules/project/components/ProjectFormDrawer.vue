@@ -22,6 +22,29 @@
         <el-input v-model="form.name" placeholder="输入模型族名称" />
       </el-form-item>
 
+      <el-form-item label="模型类型" prop="model_type">
+        <el-select v-model="form.model_type" placeholder="请选择模型类型" style="width: 100%">
+          <el-option label="分类器" value="classification" />
+          <el-option label="检测器" value="detection" />
+          <el-option label="轮廓分割" value="segmentation" />
+        </el-select>
+      </el-form-item>
+
+      <el-form-item label="模型架构" prop="model_architecture">
+        <el-select
+          v-model="form.model_architecture"
+          placeholder="请选择模型架构"
+          style="width: 100%"
+        >
+          <el-option
+            v-for="architecture in architectureOptions"
+            :key="architecture"
+            :label="architecture"
+            :value="architecture"
+          />
+        </el-select>
+      </el-form-item>
+
       <el-form-item label="实验根路径" prop="exp_root_path">
         <el-input
           v-model="form.exp_root_path"
@@ -105,10 +128,17 @@ const submitting = ref(false)
 
 const isEdit = computed(() => Boolean(props.projectItem))
 const datasetOptions = computed(() => props.datasets)
+const architectureOptions = computed(() => {
+  if (form.model_type === 'classification') return ['HGNetV2', 'EC', 'unknown']
+  if (form.model_type === 'detection') return ['YOLOv26', 'YOLOv8', 'unknown']
+  return ['unknown']
+})
 
 const form = reactive({
   project: '',
   name: '',
+  model_type: '',
+  model_architecture: 'unknown',
   description: '',
   exp_root_path: '',
   dataset_ids: [] as number[],
@@ -120,6 +150,8 @@ const form = reactive({
 const rules: FormRules<typeof form> = {
   project: [{ required: true, message: '请输入模型族标识', trigger: 'blur' }],
   name: [{ required: true, message: '请输入模型族名称', trigger: 'blur' }],
+  model_type: [{ required: true, message: '请选择模型类型', trigger: 'change' }],
+  model_architecture: [{ required: true, message: '请选择模型架构', trigger: 'change' }],
   exp_root_path: [
     { required: true, message: '请输入实验根路径', trigger: 'blur' },
     {
@@ -142,6 +174,8 @@ watch(
     if (!visible) return
     form.project = projectItem?.project || ''
     form.name = projectItem?.name || ''
+    form.model_type = projectItem?.model_type || ''
+    form.model_architecture = projectItem?.model_architecture || 'unknown'
     form.description = projectItem?.description || ''
     form.exp_root_path = projectItem?.exp_root_path || ''
     form.dataset_ids = projectItem?.dataset_ids ? [...projectItem.dataset_ids] : []
@@ -152,10 +186,21 @@ watch(
   { immediate: true },
 )
 
+watch(
+  () => form.model_type,
+  () => {
+    if (!architectureOptions.value.includes(form.model_architecture)) {
+      form.model_architecture = 'unknown'
+    }
+  },
+)
+
 function toPayload(): ProjectFormPayload {
   return {
     project: form.project.trim(),
     name: form.name.trim(),
+    model_type: form.model_type,
+    model_architecture: form.model_architecture,
     description: form.description.trim() || null,
     exp_root_path: form.exp_root_path.trim(),
     dataset_ids: [...form.dataset_ids],

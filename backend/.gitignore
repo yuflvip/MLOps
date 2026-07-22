@@ -1,3 +1,4 @@
 .pytest_cache/
+.venv-x86/
 build/
 *.egg-info/

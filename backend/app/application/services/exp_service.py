@@ -61,14 +61,18 @@ class ExpService:
         page_size: int = 20,
         project_id: Optional[int] = None,
         review_status: Optional[str] = None,
+        model_type: Optional[str] = None,
     ) -> Dict[str, Any]:
         if review_status and review_status not in REVIEW_STATUSES:
             raise ExpValidationError("Exp review_status is invalid")
+        if model_type and model_type not in {"classification", "detection", "segmentation"}:
+            raise ExpValidationError("Exp model_type is invalid")
         items, total = self._exp_repository.list_paginated(
             page=page,
             page_size=page_size,
             project_id=project_id,
             review_status=review_status,
+            model_type=model_type,
         )
         return {
             "items": [self._serialize_exp_with_metric(item) for item in items],

@@ -5,6 +5,8 @@ export interface ProjectItem {
   id: number
   project: string
   name: string
+  model_type: string | null
+  model_architecture: string | null
   description: string | null
   exp_root_path: string | null
   dataset_ids: number[]
@@ -20,11 +22,14 @@ export interface ProjectListParams {
   page_size?: number
   project?: string
   name?: string
+  model_type?: string
 }
 
 export interface ProjectFormPayload {
   project: string
   name: string
+  model_type: string
+  model_architecture: string
   description?: string | null
   exp_root_path: string
   dataset_ids: number[]

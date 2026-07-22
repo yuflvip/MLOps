@@ -33,6 +33,7 @@ async def list_projects(
     page_size: int = Query(default=20, ge=1, le=200),
     project: Optional[str] = Query(default=None),
     name: Optional[str] = Query(default=None),
+    model_type: Optional[str] = Query(default=None),
     service: ProjectService = Depends(get_project_service),
     request_context=Depends(get_request_context),
 ):
@@ -41,6 +42,7 @@ async def list_projects(
         page_size=page_size,
         project=project,
         name=name,
+        model_type=model_type,
     )
     data = ProjectListData(
         items=[ProjectItem.model_validate(item) for item in result["items"]],
@@ -87,6 +89,8 @@ async def create_project(
         result = service.create_project(
             project=payload.project,
             name=payload.name,
+            model_type=payload.model_type,
+            model_architecture=payload.model_architecture,
             description=payload.description,
             exp_root_path=payload.exp_root_path,
             dataset_ids=payload.dataset_ids,
@@ -119,6 +123,8 @@ async def update_project(
             project_id,
             project=payload.project,
             name=payload.name,
+            model_type=payload.model_type,
+            model_architecture=payload.model_architecture,
             description=payload.description,
             exp_root_path=payload.exp_root_path,
             dataset_ids=payload.dataset_ids,

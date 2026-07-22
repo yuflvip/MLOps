@@ -27,6 +27,7 @@ export interface ExpListParams {
   page_size?: number
   project_id?: number
   review_status?: ExpReviewStatus
+  model_type?: string
 }
 
 export interface ExpCandidate {

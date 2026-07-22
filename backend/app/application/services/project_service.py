@@ -11,12 +11,21 @@ from app.domain.common.exceptions import (
 from app.infrastructure.db.models import ProjectModel
 from app.infrastructure.repositories import DatasetRepository, ProjectRepository
 
+MODEL_TYPES = {"classification", "detection", "segmentation"}
+MODEL_ARCHITECTURES_BY_TYPE = {
+    "classification": {"HGNetV2", "EC", "unknown"},
+    "detection": {"YOLOv26", "YOLOv8", "unknown"},
+    "segmentation": {"unknown"},
+}
+
 
 def _serialize_project(project: ProjectModel) -> Dict[str, Any]:
     return {
         "id": project.id,
         "project": project.project,
         "name": project.name,
+        "model_type": project.model_type,
+        "model_architecture": project.model_architecture,
         "description": project.description,
         "exp_root_path": project.exp_root_path,
         "dataset_ids": json.loads(project.dataset_ids_json),
@@ -45,12 +54,18 @@ class ProjectService:
         page_size: int = 20,
         project: Optional[str] = None,
         name: Optional[str] = None,
+        model_type: Optional[str] = None,
     ) -> Dict[str, Any]:
         items, total = self._project_repository.list_paginated(
             page=page,
             page_size=page_size,
             project=project.strip() if isinstance(project, str) and project.strip() else None,
             name=name.strip() if isinstance(name, str) and name.strip() else None,
+            model_type=(
+                model_type.strip()
+                if isinstance(model_type, str) and model_type.strip()
+                else None
+            ),
         )
         return {
             "items": [_serialize_project(item) for item in items],
@@ -70,6 +85,8 @@ class ProjectService:
         *,
         project: str,
         name: str,
+        model_type: str,
+        model_architecture: str,
         description: Optional[str],
         exp_root_path: str,
         dataset_ids: List[int],
@@ -80,6 +97,8 @@ class ProjectService:
         normalized = self._validate_payload(
             project=project,
             name=name,
+            model_type=model_type,
+            model_architecture=model_architecture,
             description=description,
             exp_root_path=exp_root_path,
             dataset_ids=dataset_ids,
@@ -92,6 +111,8 @@ class ProjectService:
             ProjectModel(
                 project=normalized["project"],
                 name=normalized["name"],
+                model_type=normalized["model_type"],
+                model_architecture=normalized["model_architecture"],
                 description=normalized["description"],
                 exp_root_path=normalized["exp_root_path"],
                 dataset_ids_json=json.dumps(normalized["dataset_ids"], ensure_ascii=True),
@@ -109,6 +130,8 @@ class ProjectService:
         *,
         project: str,
         name: str,
+        model_type: str,
+        model_architecture: str,
         description: Optional[str],
         exp_root_path: str,
         dataset_ids: List[int],
@@ -123,6 +146,8 @@ class ProjectService:
         normalized = self._validate_payload(
             project=project,
             name=name,
+            model_type=model_type,
+            model_architecture=model_architecture,
             description=description,
             exp_root_path=exp_root_path,
             dataset_ids=dataset_ids,
@@ -133,6 +158,8 @@ class ProjectService:
         self._assert_unique_project(normalized["project"], exclude_id=project_id)
         existing.project = normalized["project"]
         existing.name = normalized["name"]
+        existing.model_type = normalized["model_type"]
+        existing.model_architecture = normalized["model_architecture"]
         existing.description = normalized["description"]
         existing.exp_root_path = normalized["exp_root_path"]
         existing.dataset_ids_json = json.dumps(normalized["dataset_ids"], ensure_ascii=True)
@@ -161,6 +188,8 @@ class ProjectService:
         *,
         project: str,
         name: str,
+        model_type: str,
+        model_architecture: str,
         description: Optional[str],
         exp_root_path: str,
         dataset_ids: List[int],
@@ -175,6 +204,20 @@ class ProjectService:
         normalized_name = name.strip()
         if not normalized_name:
             raise ProjectValidationError("Project name must not be empty")
+
+        normalized_model_type = model_type.strip()
+        if normalized_model_type not in MODEL_TYPES:
+            raise ProjectValidationError(
+                "Project model_type must be one of classification, detection, segmentation"
+            )
+
+        normalized_model_architecture = model_architecture.strip()
+        if normalized_model_architecture not in MODEL_ARCHITECTURES_BY_TYPE[
+            normalized_model_type
+        ]:
+            raise ProjectValidationError(
+                "Project model_architecture is not valid for project model_type"
+            )
 
         normalized_exp_root_path = exp_root_path.strip()
         if not normalized_exp_root_path:
@@ -197,6 +240,10 @@ class ProjectService:
             dataset = self._dataset_repository.get_by_id(raw_id)
             if dataset is None:
                 raise DatasetNotFoundError("Dataset '%s' was not found" % raw_id)
+            if dataset.task_type and dataset.task_type != normalized_model_type:
+                raise ProjectValidationError(
+                    "Dataset '%s' task_type does not match project model_type" % raw_id
+                )
             normalized_dataset_ids.append(raw_id)
             seen.add(raw_id)
 
@@ -211,6 +258,8 @@ class ProjectService:
         return {
             "project": normalized_project,
             "name": normalized_name,
+            "model_type": normalized_model_type,
+            "model_architecture": normalized_model_architecture,
             "description": normalized_description,
             "exp_root_path": normalized_exp_root_path,
             "dataset_ids": normalized_dataset_ids,

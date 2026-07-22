@@ -59,6 +59,7 @@ class ProjectRepository:
         page_size: int = 20,
         project: Optional[str] = None,
         name: Optional[str] = None,
+        model_type: Optional[str] = None,
     ) -> Tuple[List[ProjectModel], int]:
         stmt = select(ProjectModel)
         count_stmt = select(func.count()).select_from(ProjectModel)
@@ -68,6 +69,9 @@ class ProjectRepository:
         if name:
             stmt = stmt.where(ProjectModel.name.ilike(f"%{name}%"))
             count_stmt = count_stmt.where(ProjectModel.name.ilike(f"%{name}%"))
+        if model_type:
+            stmt = stmt.where(ProjectModel.model_type == model_type)
+            count_stmt = count_stmt.where(ProjectModel.model_type == model_type)
         offset = max(page - 1, 0) * page_size
         stmt = stmt.order_by(ProjectModel.id.desc()).offset(offset).limit(page_size)
         items = list(self._session.scalars(stmt))

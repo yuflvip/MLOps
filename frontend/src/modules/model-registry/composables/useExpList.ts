@@ -9,6 +9,7 @@ export function useExpList() {
   const items = ref<ExpItem[]>([])
   const projectIdFilter = ref<number | undefined>()
   const statusFilter = ref<ExpReviewStatus | undefined>()
+  const modelTypeFilter = ref<string | undefined>()
 
   async function fetchList() {
     await withLoadingSafe(async () => {
@@ -17,6 +18,7 @@ export function useExpList() {
         page_size: pageSize.value,
         project_id: projectIdFilter.value,
         review_status: statusFilter.value,
+        model_type: modelTypeFilter.value,
       })
       items.value = data.items
       setTotal(data.total)
@@ -26,6 +28,7 @@ export function useExpList() {
   function resetFilters() {
     projectIdFilter.value = undefined
     statusFilter.value = undefined
+    modelTypeFilter.value = undefined
     onPageChange(1)
   }
 
@@ -37,6 +40,7 @@ export function useExpList() {
     total,
     projectIdFilter,
     statusFilter,
+    modelTypeFilter,
     onPageChange,
     onSizeChange,
     fetchList,

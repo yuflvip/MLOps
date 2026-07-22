@@ -10,6 +10,7 @@ export function useProjectList() {
   const items = ref<ProjectItem[]>([])
   const projectFilter = ref('')
   const nameFilter = ref('')
+  const modelTypeFilter = ref('')
 
   async function fetchList() {
     await withLoadingSafe(async () => {
@@ -18,6 +19,7 @@ export function useProjectList() {
         page_size: pageSize.value,
         project: projectFilter.value || undefined,
         name: nameFilter.value || undefined,
+        model_type: modelTypeFilter.value || undefined,
       })
       items.value = data.items
       setTotal(data.total)
@@ -27,6 +29,7 @@ export function useProjectList() {
   function resetFilters() {
     projectFilter.value = ''
     nameFilter.value = ''
+    modelTypeFilter.value = ''
     onPageChange(1)
   }
 
@@ -38,6 +41,7 @@ export function useProjectList() {
     total,
     projectFilter,
     nameFilter,
+    modelTypeFilter,
     onPageChange,
     onSizeChange,
     fetchList,

@@ -29,6 +29,14 @@
             <el-option label="审核不通过" value="rejected" />
           </el-select>
         </el-form-item>
+        <el-form-item class="inline-filter-item">
+          <span class="inline-filter-label">模型类型</span>
+          <el-select v-model="modelTypeFilter" class="status-filter" placeholder="全部类型" clearable>
+            <el-option label="分类器" value="classification" />
+            <el-option label="检测器" value="detection" />
+            <el-option label="轮廓分割" value="segmentation" />
+          </el-select>
+        </el-form-item>
         <div class="filter-actions">
           <el-button type="primary" @click="handleSearch">查询</el-button>
           <el-button @click="handleReset">重置</el-button>
@@ -223,7 +231,7 @@ import { formatTime } from '@/shared/utils/format'
 import { useExpList } from '../composables/useExpList'
 
 const {
-  items, loading, page, pageSize, total, projectIdFilter, statusFilter,
+  items, loading, page, pageSize, total, projectIdFilter, statusFilter, modelTypeFilter,
   onPageChange, onSizeChange, fetchList, resetFilters,
 } = useExpList()
 const router = useRouter()

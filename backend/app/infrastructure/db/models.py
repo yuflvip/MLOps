@@ -173,6 +173,10 @@ class ProjectModel(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     project: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
+    model_type: Mapped[Optional[str]] = mapped_column(String(32), nullable=True, index=True)
+    model_architecture: Mapped[Optional[str]] = mapped_column(
+        String(32), nullable=True, index=True
+    )
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     exp_root_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     dataset_ids_json: Mapped[str] = mapped_column(Text, nullable=False)
