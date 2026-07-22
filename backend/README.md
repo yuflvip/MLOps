@@ -9,7 +9,16 @@
 
 ## 运行环境
 
-建议使用项目内虚拟环境：
+需要 Python 3.12 或更高版本。首次使用时，在 `backend/` 目录中创建 `.venv` 并安装项目及开发依赖：
+
+```bash
+cd backend
+python3 -m venv .venv
+./.venv/bin/python -m pip install --upgrade pip
+./.venv/bin/python -m pip install -e '.[dev]'
+```
+
+安装完成后可检查虚拟环境中的 Python 版本：
 
 ```bash
 cd backend
