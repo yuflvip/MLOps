@@ -1,3 +1,5 @@
+from typing import Dict
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -60,6 +62,24 @@ class SchedulerSettings(BaseModel):
     task_status_sync_interval_seconds: int = 30
 
 
+class ModelConverterRuntimeSettings(BaseModel):
+    enabled: bool = False
+    python_path: str = ""
+    working_dir: str = ""
+    script_path: str = ""
+
+
+class ModelConversionSettings(BaseModel):
+    max_concurrency: int = Field(default=3, ge=1)
+    log_dir: str = "./data/conversion-logs"
+    converters: Dict[str, ModelConverterRuntimeSettings] = Field(default_factory=dict)
+
+
+class QuantizationDatasetSettings(BaseModel):
+    storage_root: str = "./data/quantization-datasets"
+    max_image_size_mb: int = Field(default=100, ge=1)
+
+
 class Settings(BaseModel):
     app: AppSettings = Field(default_factory=AppSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
@@ -67,3 +87,7 @@ class Settings(BaseModel):
     templates: TemplateSourceSettings = Field(default_factory=TemplateSourceSettings)
     clearml: ClearMLSettings = Field(default_factory=ClearMLSettings)
     scheduler: SchedulerSettings = Field(default_factory=SchedulerSettings)
+    model_conversion: ModelConversionSettings = Field(default_factory=ModelConversionSettings)
+    quantization_dataset: QuantizationDatasetSettings = Field(
+        default_factory=QuantizationDatasetSettings
+    )

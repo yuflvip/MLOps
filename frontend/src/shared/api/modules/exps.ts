@@ -1,4 +1,4 @@
-import { apiGet, apiPost, http } from '../client'
+import { apiDelete, apiGet, apiPost, http } from '../client'
 import type { PaginatedData } from '@/shared/types'
 
 export type ExpReviewStatus = 'pending_review' | 'approved' | 'rejected'
@@ -63,6 +63,10 @@ export interface ExpArtifactItem {
   preview_kind: ExpArtifactPreviewKind
 }
 
+export interface ExpModelArtifactItem extends ExpArtifactItem {
+  md5: string
+}
+
 export interface ExpArtifactPreviewData {
   relative_path: string
   preview_kind: ExpArtifactPreviewKind
@@ -77,6 +81,49 @@ export interface ExpArtifactPreviewData {
   truncated: boolean
 }
 
+export type ModelConversionStatus = 'queued' | 'running' | 'succeeded' | 'failed'
+
+export interface ModelConversionItem {
+  id: number
+  exp_id: number
+  parent_conversion_id: number | null
+  converter_code: string
+  source_file: string
+  source_format: string
+  target_platform: string
+  target_format: string
+  output_file: string
+  status: ModelConversionStatus
+  params: {
+    device?: string
+    imgsz?: string
+    opset?: number
+    simplify?: boolean
+    dynamo?: boolean
+    overwrite?: boolean
+  }
+  result_files: string[]
+  log_path: string | null
+  error_message: string | null
+  created_at: string
+  started_at: string | null
+  finished_at: string | null
+}
+
+export interface ModelConversionCreatePayload {
+  converter_code: 'hgnet_to_onnx'
+  source_file: string
+  output_file: string
+  params: {
+    device: 'cpu' | 'cuda'
+    imgsz: string
+    opset: number
+    simplify: boolean
+    dynamo: boolean
+    overwrite: boolean
+  }
+}
+
 export function getExpList(params?: ExpListParams) {
   return apiGet<PaginatedData<ExpItem>, ExpListParams>('/mlops/exps', params)
 }
@@ -87,6 +134,12 @@ export function getExpDetail(id: number) {
 
 export function getExpArtifacts(id: number) {
   return apiGet<{ items: ExpArtifactItem[]; total: number }>(`/mlops/exps/${id}/artifacts`)
+}
+
+export function getExpModelArtifacts(id: number) {
+  return apiGet<{ items: ExpModelArtifactItem[]; total: number }>(
+    `/mlops/exps/${id}/model-artifacts`,
+  )
 }
 
 export function getExpArtifactPreview(
@@ -108,6 +161,19 @@ export function getExpCandidates(projectId: number) {
   return apiGet<ExpCandidateListData>(`/mlops/projects/${projectId}/exp-candidates`)
 }
 
+export function createModelConversion(expId: number, data: ModelConversionCreatePayload) {
+  return apiPost<ModelConversionItem, ModelConversionCreatePayload>(
+    `/mlops/exps/${expId}/conversions`,
+    data,
+  )
+}
+
+export function getModelConversions(expId: number) {
+  return apiGet<{ items: ModelConversionItem[]; total: number }>(
+    `/mlops/exps/${expId}/conversions`,
+  )
+}
+
 export function importExps(projectId: number, relativePaths: string[]) {
   return apiPost<ExpItem[], { relative_paths: string[] }>(
     `/mlops/projects/${projectId}/exps/import`,
@@ -126,4 +192,8 @@ export function rejectExp(id: number, reviewComment: string) {
   return apiPost<ExpItem, { review_comment: string }>(`/mlops/exps/${id}/reject`, {
     review_comment: reviewComment,
   })
+}
+
+export function deleteExp(id: number) {
+  return apiDelete<boolean>(`/mlops/exps/${id}`)
 }

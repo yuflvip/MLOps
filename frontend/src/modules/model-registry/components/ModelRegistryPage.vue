@@ -109,10 +109,10 @@
                 <el-dropdown-item
                   v-if="row.review_status === 'pending_review'"
                   command="reject"
-                  divided
                 >
                   审核不通过
                 </el-dropdown-item>
+                <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -220,6 +220,7 @@ import PageHeader from '@/shared/components/PageHeader.vue'
 import { getProjectList, type ProjectItem } from '@/shared/api/modules/projects'
 import {
   approveExp,
+  deleteExp,
   getExpCandidates,
   importExps,
   rejectExp,
@@ -291,6 +292,10 @@ function handleRowCommand(command: string, exp: ExpItem) {
   }
   if (command === 'reject') {
     handleReject(exp)
+    return
+  }
+  if (command === 'delete') {
+    handleDelete(exp)
   }
 }
 
@@ -370,6 +375,25 @@ async function handleReject(exp: ExpItem) {
   )
   await rejectExp(exp.id, value.trim())
   ElMessage.success('已标记为审核不通过')
+  await fetchList()
+}
+
+async function handleDelete(exp: ExpItem) {
+  if (exp.review_status === 'approved') {
+    ElMessage.warning('审核通过的实验不能删除')
+    return
+  }
+  await ElMessageBox.confirm(
+    `确认删除实验「${exp.name}」吗？删除后可从实验目录重新导入。`,
+    '删除确认',
+    {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    },
+  )
+  await deleteExp(exp.id)
+  ElMessage.success('实验已删除')
   await fetchList()
 }
 

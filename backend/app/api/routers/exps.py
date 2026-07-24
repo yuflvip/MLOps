@@ -18,6 +18,7 @@ from app.api.schemas.exp import (
     ExpImportRequest,
     ExpItem,
     ExpListData,
+    ExpModelArtifactListData,
     ExpRejectRequest,
 )
 from app.application.services import ExpService
@@ -89,6 +90,25 @@ async def list_exp_artifacts(
         raise_api_error_for_domain_error(exc)
     return build_success_response(
         data=ExpArtifactListData.model_validate(result),
+        request_context=request_context,
+    )
+
+
+@router.get(
+    "/exps/{exp_id}/model-artifacts",
+    response_model=ResponseEnvelope[ExpModelArtifactListData],
+)
+async def list_exp_model_artifacts(
+    exp_id: int,
+    service: ExpService = Depends(get_exp_service),
+    request_context=Depends(get_request_context),
+):
+    try:
+        result = service.list_model_artifacts(exp_id)
+    except DomainError as exc:
+        raise_api_error_for_domain_error(exc)
+    return build_success_response(
+        data=ExpModelArtifactListData.model_validate(result),
         request_context=request_context,
     )
 
@@ -208,5 +228,26 @@ async def reject_exp(
         raise_api_error_for_domain_error(exc)
     return build_success_response(
         data=ExpItem.model_validate(result),
+        request_context=request_context,
+    )
+
+
+@router.delete(
+    "/exps/{exp_id}",
+    response_model=ResponseEnvelope[bool],
+    summary="Delete Exp",
+    description="删除未审核通过的实验导入记录，不删除实验目录。",
+)
+async def delete_exp(
+    exp_id: int,
+    service: ExpService = Depends(get_exp_service),
+    request_context=Depends(get_request_context),
+):
+    try:
+        deleted = service.delete_exp(exp_id)
+    except DomainError as exc:
+        raise_api_error_for_domain_error(exc)
+    return build_success_response(
+        data=deleted,
         request_context=request_context,
     )

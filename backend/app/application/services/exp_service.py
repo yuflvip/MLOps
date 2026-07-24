@@ -1,5 +1,7 @@
 import csv
 from datetime import datetime, timezone
+import hashlib
+from functools import lru_cache
 import json
 import math
 import mimetypes
@@ -28,7 +30,18 @@ TEXT_EXTENSIONS = {
     ".conf", ".py", ".sh", ".toml", ".html", ".uuid",
 }
 MODEL_EXTENSIONS = {".pt", ".pth", ".onnx", ".om", ".nb", ".rknn"}
+MODEL_ARTIFACT_EXTENSIONS = {".pt", ".pth", ".onnx", ".om", ".bin", ".rknn"}
 MAX_TEXT_PREVIEW_BYTES = 1024 * 1024
+
+
+@lru_cache(maxsize=512)
+def _md5_cached(path: str, size_bytes: int, modified_ns: int) -> str:
+    del size_bytes, modified_ns
+    digest = hashlib.md5()
+    with Path(path).open("rb") as file_handle:
+        for chunk in iter(lambda: file_handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _serialize_exp(exp: ExpModel) -> Dict[str, Any]:
@@ -135,6 +148,38 @@ class ExpService:
                         stat.st_mtime, tz=timezone.utc
                     ).isoformat(),
                     "preview_kind": self._preview_kind(extension),
+                }
+            )
+        items.sort(key=lambda item: item["relative_path"].lower())
+        return {"items": items, "total": len(items)}
+
+    def list_model_artifacts(self, exp_id: int) -> Dict[str, Any]:
+        exp = self._get_exp(exp_id)
+        root = self._get_existing_exp_root(exp)
+        items = []
+        for path in root.rglob("*"):
+            if not path.is_file() or path.suffix.lower() not in MODEL_ARTIFACT_EXTENSIONS:
+                continue
+            resolved = path.resolve()
+            if not resolved.is_relative_to(root):
+                continue
+            stat = resolved.stat()
+            extension = resolved.suffix.lower()
+            items.append(
+                {
+                    "name": resolved.name,
+                    "relative_path": resolved.relative_to(root).as_posix(),
+                    "extension": extension.removeprefix("."),
+                    "media_type": (
+                        mimetypes.guess_type(resolved.name)[0]
+                        or "application/octet-stream"
+                    ),
+                    "size_bytes": stat.st_size,
+                    "modified_at": datetime.fromtimestamp(
+                        stat.st_mtime, tz=timezone.utc
+                    ).isoformat(),
+                    "preview_kind": self._preview_kind(extension),
+                    "md5": self._md5(resolved),
                 }
             )
         items.sort(key=lambda item: item["relative_path"].lower())
@@ -286,6 +331,14 @@ class ExpService:
         self._exp_repository.commit()
         return _serialize_exp(saved)
 
+    def delete_exp(self, exp_id: int) -> bool:
+        exp = self._get_exp(exp_id)
+        if exp.review_status == APPROVED:
+            raise ExpConflictError("Approved exp '%s' cannot be deleted" % exp_id)
+        self._exp_repository.delete(exp)
+        self._exp_repository.commit()
+        return True
+
     def _get_project_root(self, project_id: int):
         project = self._project_repository.get_by_id(project_id)
         if project is None:
@@ -310,6 +363,10 @@ class ExpService:
         stat = path.stat()
         timestamp = getattr(stat, "st_birthtime", stat.st_mtime)
         return datetime.fromtimestamp(timestamp, tz=timezone.utc)
+
+    def _md5(self, path: Path) -> str:
+        stat = path.stat()
+        return _md5_cached(str(path), stat.st_size, stat.st_mtime_ns)
 
     def _validation_metric(self, results_path: Path) -> Optional[float]:
         if not results_path.is_file():

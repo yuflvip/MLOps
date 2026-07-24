@@ -29,6 +29,18 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/modules/dataset/components/DatasetListPage.vue'),
       },
       {
+        path: 'quantization-datasets',
+        name: 'QuantizationDatasetList',
+        component: () =>
+          import('@/modules/quantization-dataset/components/QuantizationDatasetListPage.vue'),
+      },
+      {
+        path: 'quantization-datasets/:id',
+        name: 'QuantizationDatasetDetail',
+        component: () =>
+          import('@/modules/quantization-dataset/components/QuantizationDatasetDetailPage.vue'),
+      },
+      {
         path: 'runtime-environments',
         name: 'RuntimeEnvironmentList',
         component: () =>

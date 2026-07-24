@@ -26,6 +26,18 @@ class DatasetValidationError(DomainError):
     """Raised when a dataset payload is invalid."""
 
 
+class QuantizationDatasetNotFoundError(DomainError):
+    """Raised when a quantization dataset record cannot be found."""
+
+
+class QuantizationDatasetConflictError(DomainError):
+    """Raised when a quantization dataset conflicts with an existing record."""
+
+
+class QuantizationDatasetValidationError(DomainError):
+    """Raised when quantization dataset input is invalid."""
+
+
 class ProjectNotFoundError(DomainError):
     """Raised when a project record cannot be found."""
 

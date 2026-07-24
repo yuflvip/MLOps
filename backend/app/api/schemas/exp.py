@@ -70,6 +70,15 @@ class ExpArtifactListData(BaseModel):
     total: int = 0
 
 
+class ExpModelArtifactItem(ExpArtifactItem):
+    md5: str
+
+
+class ExpModelArtifactListData(BaseModel):
+    items: List[ExpModelArtifactItem] = Field(default_factory=list)
+    total: int = 0
+
+
 class ExpArtifactPreviewData(BaseModel):
     relative_path: str
     preview_kind: str

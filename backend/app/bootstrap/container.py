@@ -24,6 +24,7 @@ from app.infrastructure.scheduler import (
     register_scheduler_jobs,
 )
 from app.infrastructure.repositories import TaskRepository
+from app.infrastructure.model_conversion import LocalModelConversionScheduler
 
 
 @dataclass
@@ -36,6 +37,7 @@ class ApplicationContainer:
     conversion_template_service: TemplateService
     clearml_adapter: ClearMLAdapter
     scheduler_manager: SchedulerManager
+    model_conversion_scheduler: LocalModelConversionScheduler
 
 
 def build_container(config_path: Optional[Union[Path, str]] = None) -> ApplicationContainer:
@@ -51,6 +53,14 @@ def build_container(config_path: Optional[Union[Path, str]] = None) -> Applicati
         timezone=settings.scheduler.timezone,
     )
     clearml_adapter = ClearMLAdapter(_build_clearml_client(settings))
+    conversion_log_dir = Path(settings.model_conversion.log_dir)
+    if not conversion_log_dir.is_absolute():
+        conversion_log_dir = (config_dir.parent / conversion_log_dir).resolve()
+    model_conversion_scheduler = LocalModelConversionScheduler(
+        session_factory=session_factory,
+        settings=settings.model_conversion,
+        log_dir=conversion_log_dir,
+    )
     container = ApplicationContainer(
         config_path=resolved_config_path,
         config_dir=config_dir,
@@ -64,6 +74,7 @@ def build_container(config_path: Optional[Union[Path, str]] = None) -> Applicati
         ),
         clearml_adapter=clearml_adapter,
         scheduler_manager=scheduler_manager,
+        model_conversion_scheduler=model_conversion_scheduler,
     )
     register_scheduler_jobs(
         scheduler_manager,

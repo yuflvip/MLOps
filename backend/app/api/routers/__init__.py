@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any, Generator, Optional
 
 from fastapi import APIRouter, Depends, FastAPI, Request
@@ -16,6 +17,8 @@ from app.api.errors.http import (
     EXP_NOT_FOUND_CODE,
     PROJECT_CONFLICT_CODE,
     PROJECT_NOT_FOUND_CODE,
+    QUANTIZATION_DATASET_CONFLICT_CODE,
+    QUANTIZATION_DATASET_NOT_FOUND_CODE,
     RUNTIME_ENVIRONMENT_CONFLICT_CODE,
     RUNTIME_ENVIRONMENT_NOT_FOUND_CODE,
     TEMPLATE_NOT_FOUND_CODE,
@@ -24,7 +27,9 @@ from app.api.schemas.common import ResponseEnvelope
 from app.application.services import (
     ConversionCommandService,
     DatasetService,
+    QuantizationDatasetService,
     ExpService,
+    ModelConversionService,
     ProjectService,
     RuntimeEnvironmentService,
     SchedulerService,
@@ -42,6 +47,8 @@ from app.domain.common.exceptions import (
     ExpNotFoundError,
     ProjectConflictError,
     ProjectNotFoundError,
+    QuantizationDatasetConflictError,
+    QuantizationDatasetNotFoundError,
     RuntimeEnvironmentConflictError,
     RuntimeEnvironmentNotFoundError,
     TemplateNotFoundError,
@@ -50,7 +57,9 @@ from app.infrastructure.clearml import ClearMLAdapter
 from app.infrastructure.repositories import (
     DatasetRepository,
     ExpRepository,
+    ModelConversionRepository,
     ProjectRepository,
+    QuantizationDatasetRepository,
     RuntimeEnvironmentRepository,
     TaskRepository,
 )
@@ -61,7 +70,11 @@ def install_routers(app: FastAPI, container: ApplicationContainer) -> None:
     from app.api.routers.conversion import router as conversion_router
     from app.api.routers.datasets import router as dataset_router
     from app.api.routers.exps import router as exp_router
+    from app.api.routers.model_conversions import router as model_conversion_router
     from app.api.routers.projects import router as project_router
+    from app.api.routers.quantization_datasets import (
+        router as quantization_dataset_router,
+    )
     from app.api.routers.runtime_environments import router as runtime_environment_router
     from app.api.routers.system import router as system_router
     from app.api.routers.training import router as training_router
@@ -69,7 +82,9 @@ def install_routers(app: FastAPI, container: ApplicationContainer) -> None:
     api_router = APIRouter()
     api_router.include_router(dataset_router)
     api_router.include_router(exp_router)
+    api_router.include_router(model_conversion_router)
     api_router.include_router(project_router)
+    api_router.include_router(quantization_dataset_router)
     api_router.include_router(runtime_environment_router)
     api_router.include_router(training_router)
     api_router.include_router(conversion_router)
@@ -99,6 +114,18 @@ def raise_api_error_for_domain_error(exc: DomainError) -> None:
         raise APIError(status_code=404, code=DATASET_NOT_FOUND_CODE, message=str(exc))
     if isinstance(exc, DatasetConflictError):
         raise APIError(status_code=409, code=DATASET_CONFLICT_CODE, message=str(exc))
+    if isinstance(exc, QuantizationDatasetNotFoundError):
+        raise APIError(
+            status_code=404,
+            code=QUANTIZATION_DATASET_NOT_FOUND_CODE,
+            message=str(exc),
+        )
+    if isinstance(exc, QuantizationDatasetConflictError):
+        raise APIError(
+            status_code=409,
+            code=QUANTIZATION_DATASET_CONFLICT_CODE,
+            message=str(exc),
+        )
     if isinstance(exc, ProjectNotFoundError):
         raise APIError(status_code=404, code=PROJECT_NOT_FOUND_CODE, message=str(exc))
     if isinstance(exc, ProjectConflictError):
@@ -180,6 +207,25 @@ async def get_dataset_service(
     return DatasetService(dataset_repository=repository)
 
 
+async def get_quantization_dataset_service(
+    services: ApplicationContainer = Depends(get_container),
+) -> Generator[QuantizationDatasetService, None, None]:
+    session = services.session_factory()
+    try:
+        storage_root = Path(services.settings.quantization_dataset.storage_root)
+        if not storage_root.is_absolute():
+            storage_root = (services.config_dir.parent / storage_root).resolve()
+        yield QuantizationDatasetService(
+            QuantizationDatasetRepository(session),
+            storage_root=storage_root,
+            max_image_size_mb=(
+                services.settings.quantization_dataset.max_image_size_mb
+            ),
+        )
+    finally:
+        session.close()
+
+
 async def get_project_service(
     services: ApplicationContainer = Depends(get_container),
 ) -> Generator[ProjectService, None, None]:
@@ -204,6 +250,22 @@ async def get_exp_service(
         yield ExpService(
             exp_repository=ExpRepository(session),
             project_repository=ProjectRepository(session),
+        )
+    finally:
+        session.close()
+
+
+async def get_model_conversion_service(
+    services: ApplicationContainer = Depends(get_container),
+) -> Generator[ModelConversionService, None, None]:
+    session = services.session_factory()
+    try:
+        yield ModelConversionService(
+            conversion_repository=ModelConversionRepository(session),
+            exp_repository=ExpRepository(session),
+            project_repository=ProjectRepository(session),
+            settings=services.settings.model_conversion,
+            scheduler=services.model_conversion_scheduler,
         )
     finally:
         session.close()
@@ -261,6 +323,8 @@ __all__ = [
     "get_conversion_command_service",
     "get_dataset_service",
     "get_exp_service",
+    "get_model_conversion_service",
+    "get_quantization_dataset_service",
     "get_project_service",
     "get_runtime_environment_service",
     "get_request_context",

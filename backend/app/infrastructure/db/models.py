@@ -167,6 +167,28 @@ class DatasetModel(Base):
     )
 
 
+class QuantizationDatasetModel(Base):
+    __tablename__ = "quantization_datasets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
+    storage_path: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    image_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=utcnow,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=utcnow,
+        onupdate=utcnow,
+    )
+
+
 class ProjectModel(Base):
     __tablename__ = "projects"
 
@@ -222,6 +244,30 @@ class ExpModel(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=utcnow, onupdate=utcnow
     )
+
+
+class ModelConversionModel(Base):
+    __tablename__ = "model_conversions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    exp_id: Mapped[int] = mapped_column(ForeignKey("exps.id"), nullable=False, index=True)
+    parent_conversion_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("model_conversions.id"), nullable=True, index=True
+    )
+    converter_code: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    source_file: Mapped[str] = mapped_column(Text, nullable=False)
+    source_format: Mapped[str] = mapped_column(String(32), nullable=False)
+    target_platform: Mapped[str] = mapped_column(String(32), nullable=False)
+    target_format: Mapped[str] = mapped_column(String(32), nullable=False)
+    output_file: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    params_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    result_files_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    log_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 
 class RuntimeEnvironmentModel(Base):

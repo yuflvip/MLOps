@@ -43,6 +43,9 @@ class ExpRepository:
         )
         return self._session.scalar(stmt)
 
+    def delete(self, exp: ExpModel) -> None:
+        self._session.delete(exp)
+
     def list_paginated(
         self,
         *,

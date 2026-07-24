@@ -54,65 +54,114 @@
               <span class="font-mono">{{ formatTime(row.modified_at) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="100" fixed="right">
-            <template #default="{ row }">
-              <el-dropdown
-                trigger="click"
-                @command="handleArtifactCommand($event, row as ExpArtifactItem)"
-              >
-                <el-button link type="primary" size="small">
-                  更多
-                  <el-icon class="dropdown-icon"><ArrowDown /></el-icon>
-                </el-button>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item command="view">查看</el-dropdown-item>
-                    <el-dropdown-item
-                      v-if="isModelArtifact(row as ExpArtifactItem)"
-                      command="predict"
-                      disabled
-                      divided
-                    >
-                      模型预测
-                    </el-dropdown-item>
-                    <el-dropdown-item
-                      v-if="isPtArtifact(row as ExpArtifactItem)"
-                      command="export_onnx"
-                      disabled
-                    >
-                      导出 ONNX
-                    </el-dropdown-item>
-                    <template v-if="isOnnxArtifact(row as ExpArtifactItem)">
-                      <el-dropdown-item command="export_hisi3403" disabled>
-                        导出海思 3403
-                      </el-dropdown-item>
-                      <el-dropdown-item command="export_novatek692" disabled>
-                        导出联咏 692
-                      </el-dropdown-item>
-                      <el-dropdown-item command="export_rk3588" disabled>
-                        导出 RK3588
-                      </el-dropdown-item>
-                    </template>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
-            </template>
-          </el-table-column>
         </el-table>
       </el-tab-pane>
 
-      <el-tab-pane label="导出记录" name="exports">
-        <el-table :data="exportRecords" stripe>
+      <el-tab-pane label="模型产物" name="models">
+        <div class="section-heading">
+          <p>共 {{ modelArtifacts.length }} 个模型文件</p>
+        </div>
+
+        <el-table :data="modelArtifacts" v-loading="loading" stripe>
+          <el-table-column label="序号" type="index" width="72" />
+          <el-table-column prop="name" label="模型名称" min-width="180" show-overflow-tooltip />
+          <el-table-column prop="md5" label="Hash (MD5)" min-width="220" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span class="font-mono hash-text">{{ row.md5 }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="relative_path" label="相对路径" min-width="260" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span class="font-mono path-text">{{ row.relative_path }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="size_bytes" label="大小" width="120">
+            <template #default="{ row }">{{ formatBytes(row.size_bytes) }}</template>
+          </el-table-column>
+          <el-table-column prop="modified_at" label="修改时间" width="170">
+            <template #default="{ row }">
+              <span class="font-mono">{{ formatTime(row.modified_at) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="290" fixed="right">
+            <template #default="{ row }">
+              <div class="model-actions">
+                <el-button link type="primary" size="small" @click="downloadModel(row as ExpModelArtifactItem)">
+                  下载
+                </el-button>
+                <el-button
+                  v-if="isPtArtifact(row as ExpModelArtifactItem)"
+                  type="primary"
+                  size="small"
+                  :disabled="project?.model_architecture !== 'HGNetV2'"
+                  @click="openOnnxExport(row as ExpModelArtifactItem)"
+                >
+                  导出ONNX
+                </el-button>
+                <el-dropdown
+                  v-if="isOnnxArtifact(row as ExpModelArtifactItem)"
+                  split-button
+                  type="primary"
+                  size="small"
+                  @click="handlePlatformConversion('hisi3403', row as ExpModelArtifactItem)"
+                  @command="handlePlatformConversion($event, row as ExpModelArtifactItem)"
+                >
+                  导出海思3403
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item command="novatek692">联咏692</el-dropdown-item>
+                      <el-dropdown-item command="rk3588">RK3588</el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+              </div>
+            </template>
+          </el-table-column>
+          <template #empty>
+            <EmptyState description="暂无模型产物" />
+          </template>
+        </el-table>
+      </el-tab-pane>
+
+      <el-tab-pane label="转换记录" name="exports">
+        <el-table :data="conversionRecords" stripe>
           <el-table-column label="序号" type="index" width="72" />
           <el-table-column prop="source_file" label="源文件" min-width="190" show-overflow-tooltip />
-          <el-table-column prop="target_name" label="导出目标" width="150" />
+          <el-table-column label="转换类型" width="150">
+            <template #default="{ row }">{{ conversionTypeLabel(row.converter_code) }}</template>
+          </el-table-column>
           <el-table-column prop="output_file" label="输出文件" min-width="220" show-overflow-tooltip />
-          <el-table-column prop="status" label="状态" width="110" />
-          <el-table-column prop="created_at" label="创建时间" width="170" />
-          <el-table-column prop="finished_at" label="完成时间" width="170" />
-          <el-table-column label="操作" width="100" fixed="right" />
+          <el-table-column label="参数" min-width="220" show-overflow-tooltip>
+            <template #default="{ row }">{{ conversionParamsLabel(row as ModelConversionItem) }}</template>
+          </el-table-column>
+          <el-table-column label="状态" width="110">
+            <template #default="{ row }">
+              <el-tag :type="conversionStatusType(row.status)" size="small">
+                {{ conversionStatusLabel(row.status) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="创建时间" width="170">
+            <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
+          </el-table-column>
+          <el-table-column label="完成时间" width="170">
+            <template #default="{ row }">{{ formatTime(row.finished_at) }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="100" fixed="right">
+            <template #default="{ row }">
+              <el-button
+                v-if="row.error_message"
+                link
+                type="danger"
+                size="small"
+                @click="showConversionError(row as ModelConversionItem)"
+              >
+                失败原因
+              </el-button>
+            </template>
+          </el-table-column>
           <template #empty>
-            <EmptyState description="暂无导出记录" />
+            <EmptyState description="暂无转换记录" />
           </template>
         </el-table>
       </el-tab-pane>
@@ -178,25 +227,40 @@
         />
       </div>
     </el-dialog>
+
+    <OnnxExportDrawer
+      v-if="exp"
+      v-model="exportVisible"
+      :exp-id="exp.id"
+      :artifact="exportArtifact"
+      @submitted="handleConversionSubmitted"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowDown, ArrowLeft, Refresh } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowLeft, Refresh } from '@element-plus/icons-vue'
 import PageHeader from '@/shared/components/PageHeader.vue'
 import EmptyState from '@/shared/components/EmptyState.vue'
+import OnnxExportDrawer from './OnnxExportDrawer.vue'
 import { getProjectDetail, type ProjectItem } from '@/shared/api/modules/projects'
 import {
   getExpArtifactBlob,
   getExpArtifactPreview,
   getExpArtifacts,
   getExpDetail,
+  getExpModelArtifacts,
+  getModelConversions,
   type ExpArtifactItem,
   type ExpArtifactPreviewData,
   type ExpItem,
+  type ExpModelArtifactItem,
   type ExpReviewStatus,
+  type ModelConversionItem,
+  type ModelConversionStatus,
 } from '@/shared/api/modules/exps'
 import { formatBytes, formatTime } from '@/shared/utils/format'
 
@@ -205,9 +269,12 @@ const router = useRouter()
 const exp = ref<ExpItem>()
 const project = ref<ProjectItem>()
 const artifacts = ref<ExpArtifactItem[]>([])
+const modelArtifacts = ref<ExpModelArtifactItem[]>([])
 const activeTab = ref('artifacts')
-const exportRecords = ref<never[]>([])
+const conversionRecords = ref<ModelConversionItem[]>([])
 const loading = ref(false)
+const exportVisible = ref(false)
+const exportArtifact = ref<ExpArtifactItem>()
 const previewVisible = ref(false)
 const previewLoading = ref(false)
 const previewArtifact = ref<ExpArtifactItem>()
@@ -215,6 +282,7 @@ const previewData = ref<ExpArtifactPreviewData>()
 const previewPage = ref(1)
 const selectedSheet = ref<string>()
 const blobUrl = ref('')
+let pollTimer: ReturnType<typeof setInterval> | undefined
 
 function statusLabel(status: ExpReviewStatus) {
   if (status === 'approved') return '已审核'
@@ -234,27 +302,127 @@ function isOnnxArtifact(artifact: ExpArtifactItem) {
   return artifact.extension.toLowerCase() === 'onnx'
 }
 
-function isModelArtifact(artifact: ExpArtifactItem) {
-  return ['pt', 'pth', 'onnx', 'om', 'nb', 'rknn'].includes(
-    artifact.extension.toLowerCase(),
-  )
+function openOnnxExport(artifact: ExpModelArtifactItem) {
+  exportArtifact.value = artifact
+  exportVisible.value = true
 }
 
-function handleArtifactCommand(command: string, artifact: ExpArtifactItem) {
-  if (command === 'view') openPreview(artifact)
+async function downloadModel(artifact: ExpModelArtifactItem) {
+  try {
+    await ElMessageBox.confirm(
+      `确认下载模型「${artifact.name}」吗？`,
+      '下载确认',
+      {
+        confirmButtonText: '下载',
+        cancelButtonText: '取消',
+        type: 'info',
+      },
+    )
+  } catch {
+    return
+  }
+  const blob = await getExpArtifactBlob(Number(props.id), artifact.relative_path)
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = artifact.name
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
+
+function handlePlatformConversion(command: string, artifact: ExpModelArtifactItem) {
+  const labels: Record<string, string> = {
+    hisi3403: '海思3403',
+    novatek692: '联咏692',
+    rk3588: 'RK3588',
+  }
+  ElMessage.info(`${artifact.name} 的${labels[command] || command}转换功能待接入`)
 }
 
 async function loadPage() {
   const expId = Number(props.id)
   loading.value = true
   try {
-    const [detail, artifactData] = await Promise.all([getExpDetail(expId), getExpArtifacts(expId)])
+    const [detail, artifactData, modelArtifactData, conversionData] = await Promise.all([
+      getExpDetail(expId),
+      getExpArtifacts(expId),
+      getExpModelArtifacts(expId),
+      getModelConversions(expId),
+    ])
     exp.value = detail
     artifacts.value = artifactData.items
+    modelArtifacts.value = modelArtifactData.items
+    conversionRecords.value = conversionData.items
     project.value = await getProjectDetail(detail.project_id)
+    updatePolling()
   } finally {
     loading.value = false
   }
+}
+
+async function loadConversions() {
+  const hadActive = conversionRecords.value.some(item =>
+    ['queued', 'running'].includes(item.status),
+  )
+  const data = await getModelConversions(Number(props.id))
+  conversionRecords.value = data.items
+  const hasActive = data.items.some(item => ['queued', 'running'].includes(item.status))
+  if (hadActive && !hasActive) {
+    const [artifactData, modelArtifactData] = await Promise.all([
+      getExpArtifacts(Number(props.id)),
+      getExpModelArtifacts(Number(props.id)),
+    ])
+    artifacts.value = artifactData.items
+    modelArtifacts.value = modelArtifactData.items
+  }
+  updatePolling()
+}
+
+function updatePolling() {
+  const hasActive = conversionRecords.value.some(item =>
+    ['queued', 'running'].includes(item.status),
+  )
+  if (hasActive && !pollTimer) {
+    pollTimer = setInterval(loadConversions, 2000)
+  } else if (!hasActive && pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = undefined
+  }
+}
+
+async function handleConversionSubmitted() {
+  activeTab.value = 'exports'
+  await loadConversions()
+}
+
+function conversionTypeLabel(converterCode: string) {
+  if (converterCode === 'hgnet_to_onnx') return 'HGNet → ONNX'
+  return converterCode
+}
+
+function conversionParamsLabel(item: ModelConversionItem) {
+  const params = item.params
+  return `${params.device?.toUpperCase() || '-'} / ${params.imgsz || '-'} / opset ${params.opset || '-'}`
+}
+
+function conversionStatusLabel(status: ModelConversionStatus) {
+  if (status === 'queued') return '排队中'
+  if (status === 'running') return '导出中'
+  if (status === 'succeeded') return '成功'
+  return '失败'
+}
+
+function conversionStatusType(status: ModelConversionStatus) {
+  if (status === 'succeeded') return 'success'
+  if (status === 'failed') return 'danger'
+  if (status === 'running') return 'warning'
+  return 'info'
+}
+
+function showConversionError(item: ModelConversionItem) {
+  ElMessageBox.alert(item.error_message || '未知错误', '转换失败', {
+    confirmButtonText: '关闭',
+  })
 }
 
 async function openPreview(artifact: ExpArtifactItem) {
@@ -301,6 +469,9 @@ function clearBlobUrl() {
 }
 
 onMounted(loadPage)
+onBeforeUnmount(() => {
+  if (pollTimer) clearInterval(pollTimer)
+})
 </script>
 
 <style scoped>
@@ -319,7 +490,8 @@ onMounted(loadPage)
 .section-heading { display: flex; justify-content: space-between; align-items: end; margin-bottom: 12px; }
 .section-heading p { margin: 0; }
 .path-text { color: var(--txt2); font-size: 12px; }
-.dropdown-icon { margin-left: 4px; }
+.hash-text { font-size: 12px; color: var(--txt2); }
+.model-actions { display: flex; align-items: center; gap: 8px; }
 .preview-body { min-height: 240px; }
 .image-preview { width: 100%; height: min(68vh, 760px); background: #071127; }
 :deep(.image-preview img) { max-width: 100%; max-height: 100%; }

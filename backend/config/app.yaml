@@ -32,3 +32,17 @@ scheduler:
   enabled: false
   timezone: "UTC"
   task_status_sync_interval_seconds: 30
+
+model_conversion:
+  max_concurrency: 3
+  log_dir: "./data/conversion-logs"
+  converters:
+    hgnet_to_onnx:
+      enabled: true
+      python_path: "/root/miniconda3/envs/convnext-env/bin/python"
+      working_dir: "/mnt/yolo_tool/build/convnext_cls"
+      script_path: "/mnt/yolo_tool/build/convnext_cls/tools/export.py"
+
+quantization_dataset:
+  storage_root: "./data/quantization-datasets"
+  max_image_size_mb: 100

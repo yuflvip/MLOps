@@ -2,3 +2,5 @@
 .venv-x86/
 build/
 *.egg-info/
+data/quantization-datasets/
+test/
