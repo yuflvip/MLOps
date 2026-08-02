@@ -20,8 +20,8 @@
       </el-form-item>
       <el-form-item label="转换类型" prop="conversion_type">
         <el-select v-model="form.conversion_type" style="width: 100%">
-          <el-option label="海思 SVP_NNN（量化）" value="svp_nnn" />
-          <el-option label="昇腾 NNN（非量化）" value="ascend_nnn" />
+          <el-option label="海思 SVP_NNN" value="svp_nnn" />
+          <el-option label="昇腾 NNN" value="ascend_nnn" />
         </el-select>
       </el-form-item>
       <el-form-item
@@ -273,7 +273,8 @@ watch(visible, async (value) => {
 
 function resetForm() {
   form.conversion_type = 'svp_nnn'
-  form.output_file = props.artifact?.relative_path.replace(/\.onnx$/i, '.om') || ''
+  const modelName = props.artifact?.name.replace(/\.onnx$/i, '.om') || 'model.om'
+  form.output_file = `hisi_atc_output_svp_nnn/${modelName}`
   form.quantization_dataset_id = undefined
   form.input_shape = props.imageSize
     ? `images:1,3,${props.imageSize},${props.imageSize}`
@@ -304,7 +305,8 @@ watch(
       form.soc_version = 'OPTG'
       form.quantization_dataset_id = undefined
     } else {
-      form.output_file = props.artifact?.relative_path.replace(/\.onnx$/i, '.om') || ''
+      const modelName = props.artifact?.name.replace(/\.onnx$/i, '.om') || 'model.om'
+      form.output_file = `hisi_atc_output_svp_nnn/${modelName}`
       form.insert_op_conf = props.modelArchitecture?.toLowerCase().includes('hgnet')
         ? 'insert_op_hgnet.cfg'
         : 'insert_op.cfg'
@@ -330,8 +332,8 @@ async function handleSubmit() {
     item => item.id === form.quantization_dataset_id,
   )
   const typeLabel = form.conversion_type === 'svp_nnn'
-    ? '海思 SVP_NNN（量化）'
-    : '昇腾 NNN（非量化）'
+    ? '海思 SVP_NNN'
+    : '昇腾 NNN'
   try {
     await ElMessageBox.confirm(
       `确认开始转换海思3403吗？转换类型：${typeLabel}；源文件：${props.artifact.relative_path}；目标文件：${form.output_file.trim()}；量化数据集：${form.conversion_type === 'svp_nnn' ? dataset?.name || '-' : '不需要'}；覆盖同名文件：${form.overwrite ? '是' : '否'}`,
