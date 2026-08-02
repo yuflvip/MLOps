@@ -101,6 +101,20 @@ export interface ModelConversionItem {
     simplify?: boolean
     dynamo?: boolean
     overwrite?: boolean
+    quantization_dataset_id?: number
+    quantization_dataset_name?: string
+    image_list_path?: string
+    input_shape?: string
+    insert_op_conf?: string
+    soc_version?: string
+    compile_mode?: string
+    output_type?: string
+    quant_mode?: string
+    high_precision_layer?: string
+    online_model_type?: string
+    dry_run?: boolean
+    enable_single_stream?: boolean
+    enable_small_channel?: number
   }
   result_files: string[]
   log_path: string | null
@@ -110,7 +124,7 @@ export interface ModelConversionItem {
   finished_at: string | null
 }
 
-export interface ModelConversionCreatePayload {
+export interface OnnxConversionCreatePayload {
   converter_code: 'hgnet_to_onnx'
   source_file: string
   output_file: string
@@ -123,6 +137,45 @@ export interface ModelConversionCreatePayload {
     overwrite: boolean
   }
 }
+
+export interface Hisi3403ConversionCreatePayload {
+  converter_code: 'onnx_to_hisi3403'
+  source_file: string
+  output_file: string
+  params: {
+    quantization_dataset_id: number
+    input_shape: string
+    insert_op_conf: 'insert_op.cfg' | 'insert_op_hgnet.cfg'
+    soc_version: string
+    compile_mode: string
+    output_type: string
+    quant_mode: string
+    high_precision_layer: string
+    online_model_type: string
+    dry_run: boolean
+    overwrite: boolean
+  }
+}
+
+export interface Hisi3403AscendNnnConversionCreatePayload {
+  converter_code: 'onnx_to_hisi3403_ascend_nnn'
+  source_file: string
+  output_file: string
+  params: {
+    input_shape: string
+    insert_op_conf: 'insert_op_nnn_hgnet.cfg'
+    soc_version: string
+    enable_single_stream: boolean
+    enable_small_channel: 0 | 1
+    dry_run: boolean
+    overwrite: boolean
+  }
+}
+
+export type ModelConversionCreatePayload =
+  | OnnxConversionCreatePayload
+  | Hisi3403ConversionCreatePayload
+  | Hisi3403AscendNnnConversionCreatePayload
 
 export function getExpList(params?: ExpListParams) {
   return apiGet<PaginatedData<ExpItem>, ExpListParams>('/mlops/exps', params)
@@ -144,7 +197,13 @@ export function getExpModelArtifacts(id: number) {
 
 export function getExpArtifactPreview(
   id: number,
-  params: { path: string; page?: number; page_size?: number; sheet_name?: string },
+  params: {
+    path: string
+    page?: number
+    page_size?: number
+    sheet_name?: string
+    tail?: boolean
+  },
 ) {
   return apiGet<ExpArtifactPreviewData, typeof params>(`/mlops/exps/${id}/artifacts/preview`, params)
 }

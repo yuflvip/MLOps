@@ -2,6 +2,7 @@ import asyncio
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import shlex
 from typing import Any
 
 from sqlalchemy import select
@@ -108,24 +109,60 @@ class LocalModelConversionScheduler:
                     raise RuntimeError("Output file must be under the experiment directory")
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 process_output_path = output_path.with_name(
-                    ".%s.conversion-%s.onnx" % (output_path.stem, item.id)
+                    ".%s.conversion-%s.%s"
+                    % (output_path.stem, item.id, item.target_format)
                 )
                 process_output_path.unlink(missing_ok=True)
 
-                log_path = self._log_dir / ("%s.log" % item.id)
+                if item.converter_code in {
+                    "onnx_to_hisi3403",
+                    "onnx_to_hisi3403_ascend_nnn",
+                }:
+                    log_suffix = (
+                        "haisi3403"
+                        if item.converter_code == "onnx_to_hisi3403"
+                        else "haisi3403-ascend-nnn"
+                    )
+                    log_path = output_path.with_name(
+                        "%s.onnx-%s.log" % (output_path.stem, log_suffix)
+                    )
+                    stored_log_path = log_path.relative_to(root).as_posix()
+                    log_mode = "wb"
+                else:
+                    log_path = self._log_dir / ("%s.log" % item.id)
+                    stored_log_path = str(log_path)
+                    log_mode = "ab"
+                log_path.parent.mkdir(parents=True, exist_ok=True)
                 item.status = "running"
                 item.started_at = datetime.now(timezone.utc)
-                item.log_path = str(log_path)
+                item.log_path = stored_log_path
                 item.error_message = None
                 session.commit()
 
                 command = self._build_command(
+                    converter_code=item.converter_code,
                     runtime=runtime,
                     source_path=source_path,
                     output_path=process_output_path,
                     params=json.loads(item.params_json or "{}"),
                 )
-                with log_path.open("ab") as log_handle:
+                with log_path.open(log_mode) as log_handle:
+                    header = (
+                        "转换任务ID: %s\n"
+                        "开始时间: %s\n"
+                        "源模型: %s\n"
+                        "目标模型: %s\n"
+                        "执行命令: %s\n\n"
+                        % (
+                            item.id,
+                            item.started_at.isoformat(),
+                            source_path,
+                            output_path,
+                            shlex.join(command),
+                        )
+                    )
+                    log_handle.write(header.encode("utf-8"))
+                    log_handle.flush()
                     process = await asyncio.create_subprocess_exec(
                         *command,
                         cwd=runtime.working_dir,
@@ -138,7 +175,12 @@ class LocalModelConversionScheduler:
 
                 session.refresh(item)
                 item.finished_at = datetime.now(timezone.utc)
-                if return_code == 0 and process_output_path.is_file():
+                params = json.loads(item.params_json or "{}")
+                if return_code == 0 and params.get("dry_run"):
+                    process_output_path.unlink(missing_ok=True)
+                    item.status = "succeeded"
+                    item.result_files_json = "[]"
+                elif return_code == 0 and process_output_path.is_file():
                     process_output_path.replace(output_path)
                     item.status = "succeeded"
                     item.result_files_json = json.dumps(
@@ -161,8 +203,28 @@ class LocalModelConversionScheduler:
                 session.close()
 
     def _build_command(
-        self, *, runtime, source_path: Path, output_path: Path, params: dict[str, Any]
+        self,
+        *,
+        converter_code: str,
+        runtime,
+        source_path: Path,
+        output_path: Path,
+        params: dict[str, Any],
     ) -> list[str]:
+        if converter_code == "onnx_to_hisi3403":
+            return self._build_hisi3403_command(
+                runtime=runtime,
+                source_path=source_path,
+                output_path=output_path,
+                params=params,
+            )
+        if converter_code == "onnx_to_hisi3403_ascend_nnn":
+            return self._build_ascend_nnn_command(
+                runtime=runtime,
+                source_path=source_path,
+                output_path=output_path,
+                params=params,
+            )
         command = [
             runtime.python_path,
             runtime.script_path,
@@ -183,6 +245,81 @@ class LocalModelConversionScheduler:
             command.append("--simplify")
         if params.get("dynamo"):
             command.append("--dynamo")
+        return command
+
+    def _build_hisi3403_command(
+        self, *, runtime, source_path: Path, output_path: Path, params: dict[str, Any]
+    ) -> list[str]:
+        image_list_path = Path(str(params["image_list_path"]))
+        if not image_list_path.is_file():
+            raise RuntimeError("Quantization image list was not found")
+        insert_op_conf = Path(runtime.script_path).parent / "configs" / str(
+            params["insert_op_conf"]
+        )
+        if not insert_op_conf.is_file():
+            raise RuntimeError("AIPP config file was not found")
+
+        command = [
+            runtime.python_path,
+            runtime.script_path,
+            "--model",
+            str(source_path),
+            "--image-list",
+            str(image_list_path),
+            "--insert-op-conf",
+            str(insert_op_conf),
+            "--output",
+            str(output_path.with_suffix("")),
+            "--soc-version",
+            str(params["soc_version"]),
+            "--compile-mode",
+            str(params["compile_mode"]),
+            "--output-type",
+            str(params["output_type"]),
+            "--quant-mode",
+            str(params["quant_mode"]),
+            "--online-model-type",
+            str(params["online_model_type"]),
+        ]
+        if params.get("input_shape"):
+            command.extend(["--input-shape", str(params["input_shape"])])
+        if params.get("high_precision_layer"):
+            command.extend(
+                ["--high-precision-layer", str(params["high_precision_layer"])]
+            )
+        if params.get("dry_run"):
+            command.append("--dry-run")
+        return command
+
+    def _build_ascend_nnn_command(
+        self, *, runtime, source_path: Path, output_path: Path, params: dict[str, Any]
+    ) -> list[str]:
+        insert_op_conf = Path(runtime.script_path).parent / "configs" / str(
+            params["insert_op_conf"]
+        )
+        if not insert_op_conf.is_file():
+            raise RuntimeError("AIPP config file was not found")
+
+        command = [
+            runtime.python_path,
+            runtime.script_path,
+            "--model",
+            str(source_path),
+            "--input-shape",
+            str(params["input_shape"]),
+            "--insert-op-conf",
+            str(insert_op_conf),
+            "--output",
+            str(output_path.with_suffix("")),
+            "--soc-version",
+            str(params["soc_version"]),
+            "--enable-single-stream",
+            "true" if params["enable_single_stream"] else "false",
+            "--enable-small-channel",
+            str(params["enable_small_channel"]),
+        ]
+        if params.get("dry_run"):
+            command.append("--dry-run")
         return command
 
     def _failure_message(self, log_path: Path, *, return_code: int) -> str:

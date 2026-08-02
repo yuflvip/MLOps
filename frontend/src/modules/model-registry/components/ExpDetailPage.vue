@@ -147,8 +147,17 @@
           <el-table-column label="完成时间" width="170">
             <template #default="{ row }">{{ formatTime(row.finished_at) }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="100" fixed="right">
+          <el-table-column label="操作" width="170" fixed="right">
             <template #default="{ row }">
+              <el-button
+                v-if="['onnx_to_hisi3403', 'onnx_to_hisi3403_ascend_nnn'].includes(row.converter_code)"
+                link
+                type="primary"
+                size="small"
+                @click="openConversionLog(row as ModelConversionItem)"
+              >
+                查看日志
+              </el-button>
               <el-button
                 v-if="row.error_message"
                 link
@@ -228,6 +237,35 @@
       </div>
     </el-dialog>
 
+    <el-dialog
+      v-model="logVisible"
+      title="海思3403转换日志"
+      width="min(1120px, 92vw)"
+      top="5vh"
+      destroy-on-close
+      @closed="stopLogPolling"
+    >
+      <template #header>
+        <div class="log-dialog-header">
+          <span>海思3403转换日志</span>
+          <el-button size="small" :loading="logLoading" @click="refreshConversionLog">
+            刷新
+          </el-button>
+        </div>
+      </template>
+      <div v-loading="logLoading" class="preview-body">
+        <pre ref="logConsoleRef" class="text-preview log-console"><code>{{ logContent }}</code></pre>
+        <el-alert
+          v-if="logTruncated"
+          title="日志内容较大，当前显示最后 1 MB。"
+          type="warning"
+          :closable="false"
+          show-icon
+          class="preview-alert"
+        />
+      </div>
+    </el-dialog>
+
     <OnnxExportDrawer
       v-if="exp"
       v-model="exportVisible"
@@ -235,17 +273,28 @@
       :artifact="exportArtifact"
       @submitted="handleConversionSubmitted"
     />
+    <Hisi3403ExportDrawer
+      v-if="exp"
+      v-model="hisiExportVisible"
+      :exp-id="exp.id"
+      :artifact="hisiExportArtifact"
+      :model-architecture="project?.model_architecture"
+      :image-size="project?.imgsz"
+      :exp-root="exp.resolved_path"
+      @submitted="handleConversionSubmitted"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, Refresh } from '@element-plus/icons-vue'
 import PageHeader from '@/shared/components/PageHeader.vue'
 import EmptyState from '@/shared/components/EmptyState.vue'
 import OnnxExportDrawer from './OnnxExportDrawer.vue'
+import Hisi3403ExportDrawer from './Hisi3403ExportDrawer.vue'
 import { getProjectDetail, type ProjectItem } from '@/shared/api/modules/projects'
 import {
   getExpArtifactBlob,
@@ -275,6 +324,8 @@ const conversionRecords = ref<ModelConversionItem[]>([])
 const loading = ref(false)
 const exportVisible = ref(false)
 const exportArtifact = ref<ExpArtifactItem>()
+const hisiExportVisible = ref(false)
+const hisiExportArtifact = ref<ExpModelArtifactItem>()
 const previewVisible = ref(false)
 const previewLoading = ref(false)
 const previewArtifact = ref<ExpArtifactItem>()
@@ -283,6 +334,13 @@ const previewPage = ref(1)
 const selectedSheet = ref<string>()
 const blobUrl = ref('')
 let pollTimer: ReturnType<typeof setInterval> | undefined
+const logVisible = ref(false)
+const logLoading = ref(false)
+const logContent = ref('')
+const logTruncated = ref(false)
+const logConversionId = ref<number>()
+const logConsoleRef = ref<HTMLElement>()
+let logPollTimer: ReturnType<typeof setInterval> | undefined
 
 function statusLabel(status: ExpReviewStatus) {
   if (status === 'approved') return '已审核'
@@ -331,6 +389,11 @@ async function downloadModel(artifact: ExpModelArtifactItem) {
 }
 
 function handlePlatformConversion(command: string, artifact: ExpModelArtifactItem) {
+  if (command === 'hisi3403') {
+    hisiExportArtifact.value = artifact
+    hisiExportVisible.value = true
+    return
+  }
   const labels: Record<string, string> = {
     hisi3403: '海思3403',
     novatek692: '联咏692',
@@ -397,11 +460,19 @@ async function handleConversionSubmitted() {
 
 function conversionTypeLabel(converterCode: string) {
   if (converterCode === 'hgnet_to_onnx') return 'HGNet → ONNX'
+  if (converterCode === 'onnx_to_hisi3403') return 'ONNX → 海思 SVP_NNN'
+  if (converterCode === 'onnx_to_hisi3403_ascend_nnn') return 'ONNX → 昇腾 NNN'
   return converterCode
 }
 
 function conversionParamsLabel(item: ModelConversionItem) {
   const params = item.params
+  if (item.converter_code === 'onnx_to_hisi3403') {
+    return `${params.quantization_dataset_name || '-'} / ${params.soc_version || '-'} / 量化模式 ${params.quant_mode || '-'}`
+  }
+  if (item.converter_code === 'onnx_to_hisi3403_ascend_nnn') {
+    return `${params.soc_version || '-'} / 单流 ${params.enable_single_stream ? '启用' : '禁用'} / 小通道 ${params.enable_small_channel ?? '-'}`
+  }
   return `${params.device?.toUpperCase() || '-'} / ${params.imgsz || '-'} / opset ${params.opset || '-'}`
 }
 
@@ -423,6 +494,64 @@ function showConversionError(item: ModelConversionItem) {
   ElMessageBox.alert(item.error_message || '未知错误', '转换失败', {
     confirmButtonText: '关闭',
   })
+}
+
+async function openConversionLog(item: ModelConversionItem) {
+  logConversionId.value = item.id
+  logContent.value = '任务排队中，暂无日志。'
+  logTruncated.value = false
+  logVisible.value = true
+  await loadConversionLog()
+}
+
+async function loadConversionLog() {
+  if (!logVisible.value || logConversionId.value == null) return
+  const item = conversionRecords.value.find(
+    conversion => conversion.id === logConversionId.value,
+  )
+  if (!item) return
+  if (!item.log_path) {
+    logContent.value = item.status === 'queued'
+      ? '任务排队中，暂无日志。'
+      : item.error_message || '日志文件尚未生成。'
+    updateLogPolling(item.status)
+    return
+  }
+  logLoading.value = true
+  try {
+    const data = await getExpArtifactPreview(Number(props.id), {
+      path: item.log_path,
+      tail: true,
+    })
+    logContent.value = data.content || '日志文件暂无内容。'
+    logTruncated.value = data.truncated
+    await nextTick()
+    if (logConsoleRef.value) {
+      logConsoleRef.value.scrollTop = logConsoleRef.value.scrollHeight
+    }
+  } finally {
+    logLoading.value = false
+  }
+  updateLogPolling(item.status)
+}
+
+async function refreshConversionLog() {
+  await loadConversions()
+  await loadConversionLog()
+}
+
+function updateLogPolling(status: ModelConversionStatus) {
+  const active = ['queued', 'running'].includes(status)
+  if (active && !logPollTimer) {
+    logPollTimer = setInterval(loadConversionLog, 2000)
+  } else if (!active) {
+    stopLogPolling()
+  }
+}
+
+function stopLogPolling() {
+  if (logPollTimer) clearInterval(logPollTimer)
+  logPollTimer = undefined
 }
 
 async function openPreview(artifact: ExpArtifactItem) {
@@ -471,6 +600,7 @@ function clearBlobUrl() {
 onMounted(loadPage)
 onBeforeUnmount(() => {
   if (pollTimer) clearInterval(pollTimer)
+  stopLogPolling()
 })
 </script>
 
@@ -504,6 +634,8 @@ onBeforeUnmount(() => {
 .preview-pagination span { color: var(--txt2); font-size: 12px; }
 .no-preview { display: grid; place-items: center; min-height: 240px; color: var(--txt2); }
 .preview-alert { margin-top: 12px; }
+.log-dialog-header { display: flex; align-items: center; justify-content: space-between; padding-right: 34px; font-size: 16px; }
+.log-console { min-height: 55vh; max-height: 68vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 900px) {
   .summary-band { grid-template-columns: 1fr 1fr; }
   .path-summary { grid-column: 1 / -1; }

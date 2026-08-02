@@ -264,6 +264,7 @@ async def get_model_conversion_service(
             conversion_repository=ModelConversionRepository(session),
             exp_repository=ExpRepository(session),
             project_repository=ProjectRepository(session),
+            quantization_dataset_repository=QuantizationDatasetRepository(session),
             settings=services.settings.model_conversion,
             scheduler=services.model_conversion_scheduler,
         )

@@ -123,6 +123,7 @@ async def preview_exp_artifact(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=100, ge=1, le=200),
     sheet_name: Optional[str] = Query(default=None),
+    tail: bool = Query(default=False),
     service: ExpService = Depends(get_exp_service),
     request_context=Depends(get_request_context),
 ):
@@ -133,6 +134,7 @@ async def preview_exp_artifact(
             page=page,
             page_size=page_size,
             sheet_name=sheet_name,
+            tail=tail,
         )
     except DomainError as exc:
         raise_api_error_for_domain_error(exc)

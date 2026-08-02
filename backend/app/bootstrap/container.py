@@ -44,6 +44,7 @@ def build_container(config_path: Optional[Union[Path, str]] = None) -> Applicati
     resolved_config_path = resolve_config_path(config_path)
     settings = load_settings(resolved_config_path)
     config_dir = resolved_config_path.parent
+    _resolve_model_converter_paths(settings, config_dir.parent)
     session_factory = build_session_factory(
         normalize_database_url(settings.database.url, config_dir.parent)
     )
@@ -91,6 +92,17 @@ def _resolve_template_path(template_path: str, config_dir: Path) -> Path:
     if not path.is_absolute():
         return (config_dir.parent / path).resolve()
     return path
+
+
+def _resolve_model_converter_paths(settings: Settings, backend_dir: Path) -> None:
+    for runtime in settings.model_conversion.converters.values():
+        for field_name in ("working_dir", "script_path"):
+            raw_value = getattr(runtime, field_name)
+            if not raw_value:
+                continue
+            path = Path(raw_value)
+            if not path.is_absolute():
+                setattr(runtime, field_name, str((backend_dir / path).resolve()))
 
 
 def _build_clearml_client(settings: Settings):

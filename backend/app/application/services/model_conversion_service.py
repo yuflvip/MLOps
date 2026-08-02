@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
@@ -14,6 +15,7 @@ from app.infrastructure.repositories import (
     ExpRepository,
     ModelConversionRepository,
     ProjectRepository,
+    QuantizationDatasetRepository,
 )
 
 
@@ -23,7 +25,19 @@ CONVERTER_METADATA = {
         "target_platform": "onnx",
         "target_format": "onnx",
         "architectures": {"hgnetv2"},
-    }
+    },
+    "onnx_to_hisi3403": {
+        "source_formats": {"onnx"},
+        "target_platform": "hisi3403",
+        "target_format": "om",
+        "architectures": None,
+    },
+    "onnx_to_hisi3403_ascend_nnn": {
+        "source_formats": {"onnx"},
+        "target_platform": "hisi3403",
+        "target_format": "om",
+        "architectures": None,
+    },
 }
 
 
@@ -64,12 +78,14 @@ class ModelConversionService:
         conversion_repository: ModelConversionRepository,
         exp_repository: ExpRepository,
         project_repository: ProjectRepository,
+        quantization_dataset_repository: QuantizationDatasetRepository,
         settings: ModelConversionSettings,
         scheduler,
     ) -> None:
         self._conversion_repository = conversion_repository
         self._exp_repository = exp_repository
         self._project_repository = project_repository
+        self._quantization_dataset_repository = quantization_dataset_repository
         self._settings = settings
         self._scheduler = scheduler
 
@@ -93,7 +109,11 @@ class ModelConversionService:
 
         project = self._project_repository.get_by_id(exp.project_id)
         architecture = (project.model_architecture if project else "") or ""
-        if architecture.casefold() not in metadata["architectures"]:
+        supported_architectures = metadata["architectures"]
+        if (
+            supported_architectures is not None
+            and architecture.casefold() not in supported_architectures
+        ):
             raise ExpValidationError(
                 "Converter '%s' does not support architecture '%s'"
                 % (converter_code, architecture or "unknown")
@@ -107,15 +127,30 @@ class ModelConversionService:
         )
         source_format = source_path.suffix.lower().removeprefix(".")
         if source_format not in metadata["source_formats"]:
-            raise ExpValidationError("Source model must be a .pt or .pth file")
+            allowed_formats = ", ".join(
+                ".%s" % value for value in sorted(metadata["source_formats"])
+            )
+            raise ExpValidationError("Source model must be one of: %s" % allowed_formats)
 
         output_path, normalized_output = self._resolve_path(
             root, output_file, must_exist=False
         )
-        if output_path.suffix.lower() != ".onnx":
-            raise ExpValidationError("Output file must use the .onnx extension")
-        normalized_params = self._validate_hgnet_params(params)
-        if output_path.exists() and not normalized_params["overwrite"]:
+        expected_suffix = ".%s" % metadata["target_format"]
+        if output_path.suffix.lower() != expected_suffix:
+            raise ExpValidationError(
+                "Output file must use the %s extension" % expected_suffix
+            )
+        if converter_code == "hgnet_to_onnx":
+            normalized_params = self._validate_hgnet_params(params)
+        elif converter_code == "onnx_to_hisi3403_ascend_nnn":
+            normalized_params = self._validate_ascend_nnn_params(params)
+        else:
+            normalized_params = self._validate_hisi3403_params(params)
+        if (
+            output_path.exists()
+            and not normalized_params["overwrite"]
+            and not normalized_params.get("dry_run", False)
+        ):
             raise ExpConflictError(
                 "输出文件“%s”已存在，请勾选覆盖同名文件或修改输出文件名"
                 % normalized_output
@@ -202,3 +237,158 @@ class ModelConversionService:
             "dynamo": bool(params.get("dynamo", False)),
             "overwrite": bool(params.get("overwrite", False)),
         }
+
+    def _validate_hisi3403_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        allowed = {
+            "quantization_dataset_id",
+            "input_shape",
+            "insert_op_conf",
+            "soc_version",
+            "compile_mode",
+            "output_type",
+            "quant_mode",
+            "high_precision_layer",
+            "online_model_type",
+            "dry_run",
+            "overwrite",
+        }
+        unknown = set(params) - allowed
+        if unknown:
+            raise ExpValidationError(
+                "Unsupported conversion parameters: %s" % ", ".join(sorted(unknown))
+            )
+
+        dataset_id = params.get("quantization_dataset_id")
+        if isinstance(dataset_id, bool) or not isinstance(dataset_id, int):
+            raise ExpValidationError("quantization_dataset_id must be an integer")
+        dataset = self._quantization_dataset_repository.get_by_id(dataset_id)
+        if dataset is None:
+            raise ExpValidationError("Quantization dataset was not found")
+        if dataset.image_count <= 0:
+            raise ExpValidationError("量化数据集没有图片，不能执行转换")
+        image_list_path = Path(dataset.storage_path) / "ref_img_list.txt"
+        if not image_list_path.is_file():
+            raise ExpValidationError("量化数据集的 ref_img_list.txt 不存在")
+
+        input_shape = self._optional_text(
+            params.get("input_shape"), name="input_shape", max_length=255
+        )
+        if input_shape and not re.fullmatch(
+            r"[^:,\s]+:\d+,\d+,\d+,\d+", input_shape
+        ):
+            raise ExpValidationError(
+                "input_shape must use input_name:n,c,h,w format"
+            )
+
+        insert_op_conf = str(params.get("insert_op_conf", "insert_op.cfg")).strip()
+        if insert_op_conf not in {"insert_op.cfg", "insert_op_hgnet.cfg"}:
+            raise ExpValidationError("insert_op_conf is not supported")
+
+        return {
+            "quantization_dataset_id": dataset.id,
+            "quantization_dataset_name": dataset.name,
+            "image_list_path": str(image_list_path.resolve()),
+            "input_shape": input_shape,
+            "insert_op_conf": insert_op_conf,
+            "soc_version": self._required_text(
+                params.get("soc_version", "SS928V100"),
+                name="soc_version",
+                max_length=64,
+            ),
+            "compile_mode": self._required_text(
+                params.get("compile_mode", "6"),
+                name="compile_mode",
+                max_length=32,
+            ),
+            "output_type": self._optional_text(
+                params.get("output_type", "FP32"),
+                name="output_type",
+                max_length=32,
+            ),
+            "quant_mode": self._required_text(
+                params.get("quant_mode", "1"),
+                name="quant_mode",
+                max_length=32,
+            ),
+            "high_precision_layer": self._optional_text(
+                params.get("high_precision_layer"),
+                name="high_precision_layer",
+                max_length=512,
+            ),
+            "online_model_type": self._required_text(
+                params.get("online_model_type", "0"),
+                name="online_model_type",
+                max_length=32,
+            ),
+            "dry_run": bool(params.get("dry_run", False)),
+            "overwrite": bool(params.get("overwrite", False)),
+        }
+
+    def _validate_ascend_nnn_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        allowed = {
+            "input_shape",
+            "insert_op_conf",
+            "soc_version",
+            "enable_single_stream",
+            "enable_small_channel",
+            "dry_run",
+            "overwrite",
+        }
+        unknown = set(params) - allowed
+        if unknown:
+            raise ExpValidationError(
+                "Unsupported conversion parameters: %s" % ", ".join(sorted(unknown))
+            )
+
+        input_shape = self._required_text(
+            params.get("input_shape"), name="input_shape", max_length=255
+        )
+        if not re.fullmatch(r"[^:,\s]+:\d+,\d+,\d+,\d+", input_shape):
+            raise ExpValidationError(
+                "input_shape must use input_name:n,c,h,w format"
+            )
+
+        insert_op_conf = str(
+            params.get("insert_op_conf", "insert_op_nnn_hgnet.cfg")
+        ).strip()
+        if insert_op_conf not in {"insert_op_nnn_hgnet.cfg"}:
+            raise ExpValidationError("insert_op_conf is not supported")
+
+        enable_single_stream = params.get("enable_single_stream", True)
+        if not isinstance(enable_single_stream, bool):
+            raise ExpValidationError("enable_single_stream must be a boolean")
+        enable_small_channel = params.get("enable_small_channel", 1)
+        if isinstance(enable_small_channel, bool) or enable_small_channel not in {0, 1}:
+            raise ExpValidationError("enable_small_channel must be 0 or 1")
+
+        return {
+            "input_shape": input_shape,
+            "insert_op_conf": insert_op_conf,
+            "soc_version": self._required_text(
+                params.get("soc_version", "OPTG"),
+                name="soc_version",
+                max_length=64,
+            ),
+            "enable_single_stream": enable_single_stream,
+            "enable_small_channel": enable_small_channel,
+            "dry_run": bool(params.get("dry_run", False)),
+            "overwrite": bool(params.get("overwrite", False)),
+        }
+
+    @staticmethod
+    def _required_text(value: Any, *, name: str, max_length: int) -> str:
+        normalized = str(value).strip()
+        if not normalized:
+            raise ExpValidationError("%s must not be empty" % name)
+        if len(normalized) > max_length or "\x00" in normalized:
+            raise ExpValidationError("%s is invalid" % name)
+        return normalized
+
+    @classmethod
+    def _optional_text(cls, value: Any, *, name: str, max_length: int) -> str:
+        if value is None:
+            return ""
+        normalized = str(value).strip()
+        if not normalized:
+            return ""
+        return cls._required_text(normalized, name=name, max_length=max_length)

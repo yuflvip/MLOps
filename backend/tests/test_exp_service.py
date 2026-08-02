@@ -1,8 +1,9 @@
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from app.application.services.exp_service import ExpService
+from app.application.services.exp_service import MAX_TEXT_PREVIEW_BYTES, ExpService
 from app.domain.common.exceptions import ExpConflictError
 
 
@@ -45,3 +46,27 @@ def test_delete_exp_rejects_approved_exp():
 
     assert repository.deleted is None
     assert repository.committed is False
+
+
+def test_preview_text_tail_returns_latest_content(tmp_path: Path):
+    log_path = tmp_path / "best.onnx-haisi3403.log"
+    log_path.write_bytes(
+        b"old-line\n"
+        + b"x" * MAX_TEXT_PREVIEW_BYTES
+        + b"\nlatest-atc-error\n"
+    )
+    exp = SimpleNamespace(id=7, resolved_path=str(tmp_path))
+    service = ExpService(
+        exp_repository=FakeExpRepository(exp),
+        project_repository=SimpleNamespace(),
+    )
+
+    result = service.preview_artifact(
+        7,
+        relative_path=log_path.name,
+        tail=True,
+    )
+
+    assert result["truncated"] is True
+    assert "latest-atc-error" in result["content"]
+    assert "old-line" not in result["content"]

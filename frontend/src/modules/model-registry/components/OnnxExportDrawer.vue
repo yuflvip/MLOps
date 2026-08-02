@@ -3,10 +3,17 @@
     v-model="visible"
     title="导出 ONNX"
     direction="rtl"
-    size="460px"
+    size="540px"
     :close-on-click-modal="false"
   >
-    <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
+    <el-form
+      ref="formRef"
+      :model="form"
+      :rules="rules"
+      label-position="right"
+      label-width="150px"
+      class="export-form"
+    >
       <el-form-item label="源模型文件">
         <el-input :model-value="artifact?.relative_path" disabled />
       </el-form-item>
@@ -47,7 +54,12 @@
 
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import {
+  ElMessage,
+  ElMessageBox,
+  type FormInstance,
+  type FormRules,
+} from 'element-plus'
 import {
   createModelConversion,
   type ExpArtifactItem,
@@ -110,6 +122,19 @@ watch(visible, (value) => {
 async function handleSubmit() {
   if (!props.artifact || !formRef.value) return
   await formRef.value.validate()
+  try {
+    await ElMessageBox.confirm(
+      `确认开始导出ONNX吗？源文件：${props.artifact.relative_path}；目标文件：${form.output_file.trim()}；覆盖同名文件：${form.overwrite ? '是' : '否'}`,
+      '导出ONNX确认',
+      {
+        type: 'warning',
+        confirmButtonText: '开始导出',
+        cancelButtonText: '取消',
+      },
+    )
+  } catch {
+    return
+  }
   submitting.value = true
   try {
     await createModelConversion(props.expId, {
@@ -133,3 +158,27 @@ async function handleSubmit() {
   }
 }
 </script>
+
+<style scoped>
+:deep(.export-form .el-form-item__content > .el-input),
+:deep(.export-form .el-form-item__content > .el-select),
+:deep(.export-form .el-form-item__content > .el-input-number) {
+  width: 100%;
+}
+
+@media (max-width: 700px) {
+  :deep(.export-form .el-form-item) {
+    display: block;
+  }
+  :deep(.export-form .el-form-item__label) {
+    display: block;
+    width: 100% !important;
+    height: auto;
+    margin-bottom: 6px;
+    text-align: left;
+  }
+  :deep(.export-form .el-form-item__content) {
+    margin-left: 0 !important;
+  }
+}
+</style>

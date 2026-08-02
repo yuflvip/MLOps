@@ -193,6 +193,7 @@ class ExpService:
         page: int = 1,
         page_size: int = 100,
         sheet_name: Optional[str] = None,
+        tail: bool = False,
     ) -> Dict[str, Any]:
         path, normalized_relative_path = self.resolve_artifact(exp_id, relative_path)
         kind = self._preview_kind(path.suffix.lower())
@@ -207,15 +208,17 @@ class ExpService:
         if kind in {"text", "json"}:
             size = path.stat().st_size
             with path.open("rb") as file_handle:
+                if tail and kind == "text" and size > MAX_TEXT_PREVIEW_BYTES:
+                    file_handle.seek(size - MAX_TEXT_PREVIEW_BYTES)
                 raw = file_handle.read(MAX_TEXT_PREVIEW_BYTES + 1)
-            truncated = len(raw) > MAX_TEXT_PREVIEW_BYTES
+            truncated = size > MAX_TEXT_PREVIEW_BYTES
             content = raw[:MAX_TEXT_PREVIEW_BYTES].decode("utf-8", errors="replace")
             if kind == "json":
                 try:
                     content = json.dumps(json.loads(content), ensure_ascii=False, indent=2)
                 except (json.JSONDecodeError, UnicodeDecodeError):
                     pass
-            return {**base, "content": content, "truncated": truncated or size > len(raw)}
+            return {**base, "content": content, "truncated": truncated}
         if kind == "table":
             return {**base, **self._preview_delimited(path, page, page_size)}
         if kind == "xlsx":

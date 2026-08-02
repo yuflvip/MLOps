@@ -42,6 +42,16 @@ model_conversion:
       python_path: "/root/miniconda3/envs/convnext-env/bin/python"
       working_dir: "/mnt/yolo_tool/build/convnext_cls"
       script_path: "/mnt/yolo_tool/build/convnext_cls/tools/export.py"
+    onnx_to_hisi3403:
+      enabled: true
+      python_path: "/usr/bin/bash"
+      working_dir: "./scripts/model_conversion/hisi3403/svp_nnn"
+      script_path: "./scripts/model_conversion/hisi3403/svp_nnn/export_svpnnn_om.sh"
+    onnx_to_hisi3403_ascend_nnn:
+      enabled: true
+      python_path: "/usr/bin/bash"
+      working_dir: "./scripts/model_conversion/hisi3403/ascend_nnn"
+      script_path: "./scripts/model_conversion/hisi3403/ascend_nnn/export_nnn_om.sh"
 
 quantization_dataset:
   storage_root: "./data/quantization-datasets"
