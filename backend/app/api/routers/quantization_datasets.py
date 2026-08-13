@@ -56,7 +56,9 @@ async def create_quantization_dataset(
 ):
     try:
         result = service.create_dataset(
-            name=payload.name, description=payload.description
+            name=payload.name,
+            directory_name=payload.directory_name,
+            description=payload.description,
         )
     except DomainError as exc:
         raise_api_error_for_domain_error(exc)
@@ -227,4 +229,25 @@ async def download_quantization_image_list(
         image_list_path,
         media_type="text/plain; charset=utf-8",
         filename="ref_img_list.txt",
+    )
+
+
+@router.post(
+    "/{dataset_id}/ref-img-list/regenerate",
+    response_model=ResponseEnvelope[QuantizationDatasetItem],
+)
+async def regenerate_quantization_image_list(
+    dataset_id: int,
+    service: QuantizationDatasetService = Depends(
+        get_quantization_dataset_service
+    ),
+    request_context=Depends(get_request_context),
+):
+    try:
+        result = service.regenerate_image_list(dataset_id)
+    except DomainError as exc:
+        raise_api_error_for_domain_error(exc)
+    return build_success_response(
+        data=QuantizationDatasetItem.model_validate(result),
+        request_context=request_context,
     )

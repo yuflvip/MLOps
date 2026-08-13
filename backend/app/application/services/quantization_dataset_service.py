@@ -1,7 +1,7 @@
 import os
+import re
 import shutil
 import tempfile
-import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -71,15 +71,22 @@ class QuantizationDatasetService:
         return _serialize_dataset(self._get_dataset(dataset_id))
 
     def create_dataset(
-        self, *, name: str, description: Optional[str]
+        self, *, name: str, directory_name: str, description: Optional[str]
     ) -> Dict[str, Any]:
         normalized_name = self._normalize_name(name)
+        normalized_directory_name = self._normalize_directory_name(directory_name)
         if self._repository.get_by_name(normalized_name):
             raise QuantizationDatasetConflictError(
                 f"量化数据集名称“{normalized_name}”已存在"
             )
         self._storage_root.mkdir(parents=True, exist_ok=True)
-        storage_path = self._storage_root / uuid.uuid4().hex
+        storage_path = self._storage_root / normalized_directory_name
+        if storage_path.exists() or self._repository.get_by_storage_path(
+            str(storage_path)
+        ):
+            raise QuantizationDatasetConflictError(
+                f"量化数据集目录“{normalized_directory_name}”已存在"
+            )
         images_path = storage_path / "images"
         try:
             images_path.mkdir(parents=True)
@@ -201,6 +208,12 @@ class QuantizationDatasetService:
             self._write_image_list(target.parent)
         return target
 
+    def regenerate_image_list(self, dataset_id: int) -> Dict[str, Any]:
+        dataset = self._get_dataset(dataset_id)
+        self._sync_dataset_files(dataset)
+        self._repository.commit()
+        return _serialize_dataset(dataset)
+
     def _get_dataset(self, dataset_id: int) -> QuantizationDatasetModel:
         dataset = self._repository.get_by_id(dataset_id)
         if dataset is None:
@@ -265,6 +278,19 @@ class QuantizationDatasetService:
             raise QuantizationDatasetValidationError("量化数据集名称不能为空")
         if len(normalized) > 128:
             raise QuantizationDatasetValidationError("量化数据集名称不能超过128个字符")
+        return normalized
+
+    @staticmethod
+    def _normalize_directory_name(directory_name: str) -> str:
+        normalized = directory_name.strip()
+        if not normalized:
+            raise QuantizationDatasetValidationError("目录名称不能为空")
+        if len(normalized) > 128:
+            raise QuantizationDatasetValidationError("目录名称不能超过128个字符")
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", normalized):
+            raise QuantizationDatasetValidationError(
+                "目录名称只能包含英文字母、数字、下划线和短横线，且必须以字母或数字开头"
+            )
         return normalized
 
     @staticmethod

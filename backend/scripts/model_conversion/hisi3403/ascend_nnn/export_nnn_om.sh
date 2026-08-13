@@ -18,16 +18,16 @@ DRY_RUN=0
 usage() {
     cat <<'EOF'
 用法：
-  bash export_nnn_om.sh --model model.onnx --input-shape images:1,3,224,224 --output output/best [参数]
+  bash export_nnn_om.sh --model model.onnx --input_shape images:1,3,224,224 --output output/best [参数]
 
 参数：
   --model <路径>
-  --input-shape <input_name:n,c,h,w>
-  --insert-op-conf <路径>
+  --input_shape <input_name:n,c,h,w>
+  --insert_op_conf <路径>
   --output <OM输出前缀>
-  --soc-version <值>
-  --enable-single-stream <true|false>
-  --enable-small-channel <0|1>
+  --soc_version <值>
+  --enable_single_stream <true|false>
+  --enable_small_channel <0|1>
   --dry-run
 EOF
 }
@@ -64,12 +64,12 @@ load_ascend_env() {
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --model) MODEL_PATH="${2:-}"; shift 2 ;;
-        --input-shape) INPUT_SHAPE="${2:-}"; shift 2 ;;
-        --insert-op-conf) INSERT_OP_CONF="${2:-}"; shift 2 ;;
+        --input_shape) INPUT_SHAPE="${2:-}"; shift 2 ;;
+        --insert_op_conf) INSERT_OP_CONF="${2:-}"; shift 2 ;;
         --output) OUTPUT_PREFIX="${2:-}"; shift 2 ;;
-        --soc-version) SOC_VERSION="${2:-}"; shift 2 ;;
-        --enable-single-stream) ENABLE_SINGLE_STREAM="${2:-}"; shift 2 ;;
-        --enable-small-channel) ENABLE_SMALL_CHANNEL="${2:-}"; shift 2 ;;
+        --soc_version) SOC_VERSION="${2:-}"; shift 2 ;;
+        --enable_single_stream) ENABLE_SINGLE_STREAM="${2:-}"; shift 2 ;;
+        --enable_small_channel) ENABLE_SMALL_CHANNEL="${2:-}"; shift 2 ;;
         --dry-run) DRY_RUN=1; shift ;;
         --help|-h) usage; exit 0 ;;
         *) die "未知参数：$1" ;;
@@ -79,12 +79,12 @@ done
 set -euo pipefail
 
 [[ -n "${MODEL_PATH}" ]] || die "--model 不能为空"
-[[ -n "${INPUT_SHAPE}" ]] || die "--input-shape 不能为空"
+[[ -n "${INPUT_SHAPE}" ]] || die "--input_shape 不能为空"
 [[ -n "${OUTPUT_PREFIX}" ]] || die "--output 不能为空"
-[[ -n "${SOC_VERSION}" ]] || die "--soc-version 不能为空"
-[[ "${INPUT_SHAPE}" == *:* ]] || die "--input-shape 格式应为 input_name:n,c,h,w"
-[[ "${ENABLE_SINGLE_STREAM}" =~ ^(true|false)$ ]] || die "--enable-single-stream 只能是 true 或 false"
-[[ "${ENABLE_SMALL_CHANNEL}" =~ ^[01]$ ]] || die "--enable-small-channel 只能是 0 或 1"
+[[ -n "${SOC_VERSION}" ]] || die "--soc_version 不能为空"
+[[ "${INPUT_SHAPE}" == *:* ]] || die "--input_shape 格式应为 input_name:n,c,h,w"
+[[ "${ENABLE_SINGLE_STREAM}" =~ ^(true|false)$ ]] || die "--enable_single_stream 只能是 true 或 false"
+[[ "${ENABLE_SMALL_CHANNEL}" =~ ^[01]$ ]] || die "--enable_small_channel 只能是 0 或 1"
 
 MODEL_PATH="$(absolute_path "${MODEL_PATH}")"
 INSERT_OP_CONF="$(absolute_path "${INSERT_OP_CONF}")"

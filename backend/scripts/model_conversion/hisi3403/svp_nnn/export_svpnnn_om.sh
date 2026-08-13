@@ -21,20 +21,20 @@ DRY_RUN=0
 usage() {
     cat <<'EOF'
 用法：
-  bash export_svpnnn_om.sh --model model.onnx --image-list ref_img_list.txt [参数]
+  bash export_svpnnn_om.sh --model model.onnx --image_list ref_img_list.txt [参数]
 
 参数：
   --model <路径>
-  --image-list <路径>
-  --input-shape <input_name:n,c,h,w>
-  --insert-op-conf <路径>
+  --image_list <路径>
+  --input_shape <input_name:n,c,h,w>
+  --insert_op_conf <路径>
   --output <OM输出前缀>
-  --soc-version <值>
-  --compile-mode <值>
-  --output-type <值>
-  --quant-mode <值>
-  --high-precision-layer <值>
-  --online-model-type <值>
+  --soc_version <值>
+  --compile_mode <值>
+  --output_type <值>
+  --quant_mode <值>
+  --high_precision_layer <值>
+  --online_model_type <值>
   --dry-run
 EOF
 }
@@ -97,16 +97,16 @@ ensure_atc_env() {
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --model) MODEL_PATH="${2:-}"; shift 2 ;;
-        --image-list) IMAGE_LIST_PATH="${2:-}"; shift 2 ;;
-        --input-shape) INPUT_SHAPE="${2:-}"; shift 2 ;;
-        --insert-op-conf) INSERT_OP_CONF="${2:-}"; shift 2 ;;
+        --image_list) IMAGE_LIST_PATH="${2:-}"; shift 2 ;;
+        --input_shape) INPUT_SHAPE="${2:-}"; shift 2 ;;
+        --insert_op_conf) INSERT_OP_CONF="${2:-}"; shift 2 ;;
         --output) OUTPUT_PREFIX="${2:-}"; shift 2 ;;
-        --soc-version) SOC_VERSION="${2:-}"; shift 2 ;;
-        --compile-mode) COMPILE_MODE="${2:-}"; shift 2 ;;
-        --output-type) OUTPUT_TYPE="${2:-}"; shift 2 ;;
-        --quant-mode) QUANT_MODE="${2:-}"; shift 2 ;;
-        --high-precision-layer) HIGH_PRECISION_LAYER="${2:-}"; shift 2 ;;
-        --online-model-type) ONLINE_MODEL_TYPE="${2:-}"; shift 2 ;;
+        --soc_version) SOC_VERSION="${2:-}"; shift 2 ;;
+        --compile_mode) COMPILE_MODE="${2:-}"; shift 2 ;;
+        --output_type) OUTPUT_TYPE="${2:-}"; shift 2 ;;
+        --quant_mode) QUANT_MODE="${2:-}"; shift 2 ;;
+        --high_precision_layer) HIGH_PRECISION_LAYER="${2:-}"; shift 2 ;;
+        --online_model_type) ONLINE_MODEL_TYPE="${2:-}"; shift 2 ;;
         --dry-run) DRY_RUN=1; shift ;;
         --help|-h) usage; exit 0 ;;
         *) die "未知参数：$1" ;;
@@ -114,12 +114,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -n "${MODEL_PATH}" ]] || die "--model 不能为空"
-[[ -n "${IMAGE_LIST_PATH}" ]] || die "--image-list 不能为空"
+[[ -n "${IMAGE_LIST_PATH}" ]] || die "--image_list 不能为空"
 [[ -n "${OUTPUT_PREFIX}" ]] || die "--output 不能为空"
-[[ -n "${SOC_VERSION}" ]] || die "--soc-version 不能为空"
-[[ -n "${COMPILE_MODE}" ]] || die "--compile-mode 不能为空"
-[[ -n "${QUANT_MODE}" ]] || die "--quant-mode 不能为空"
-[[ -n "${ONLINE_MODEL_TYPE}" ]] || die "--online-model-type 不能为空"
+[[ -n "${SOC_VERSION}" ]] || die "--soc_version 不能为空"
+[[ -n "${COMPILE_MODE}" ]] || die "--compile_mode 不能为空"
+[[ -n "${QUANT_MODE}" ]] || die "--quant_mode 不能为空"
+[[ -n "${ONLINE_MODEL_TYPE}" ]] || die "--online_model_type 不能为空"
 
 MODEL_PATH="$(absolute_path "${MODEL_PATH}")"
 IMAGE_LIST_PATH="$(absolute_path "${IMAGE_LIST_PATH}")"
@@ -137,10 +137,10 @@ if [[ -z "${INPUT_SHAPE}" ]]; then
     parse_code=$?
     set -e
     if [[ ${parse_code} -ne 0 ]]; then
-        die "无法自动解析ONNX静态输入Shape，请在页面填写 --input-shape"
+        die "无法自动解析ONNX静态输入Shape，请在页面填写 --input_shape"
     fi
 fi
-[[ "${INPUT_SHAPE}" == *:* ]] || die "--input-shape 格式应为 input_name:n,c,h,w"
+[[ "${INPUT_SHAPE}" == *:* ]] || die "--input_shape 格式应为 input_name:n,c,h,w"
 
 ATC_COMMAND=(
     atc

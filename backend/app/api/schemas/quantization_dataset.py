@@ -25,11 +25,13 @@ class QuantizationDatasetListData(BaseModel):
 
 class QuantizationDatasetCreateRequest(BaseModel):
     name: str
+    directory_name: str
     description: Optional[str] = None
 
 
-class QuantizationDatasetUpdateRequest(QuantizationDatasetCreateRequest):
-    pass
+class QuantizationDatasetUpdateRequest(BaseModel):
+    name: str
+    description: Optional[str] = None
 
 
 class QuantizationImageItem(BaseModel):

@@ -19,7 +19,13 @@ export interface QuantizationImageItem {
   modified_at: string
 }
 
-export interface QuantizationDatasetForm {
+export interface QuantizationDatasetCreateForm {
+  name: string
+  directory_name: string
+  description?: string | null
+}
+
+export interface QuantizationDatasetUpdateForm {
   name: string
   description?: string | null
 }
@@ -44,15 +50,15 @@ export function getQuantizationDataset(id: number) {
   return apiGet<QuantizationDatasetItem>(`/mlops/quantization-datasets/${id}`)
 }
 
-export function createQuantizationDataset(data: QuantizationDatasetForm) {
-  return apiPost<QuantizationDatasetItem, QuantizationDatasetForm>(
+export function createQuantizationDataset(data: QuantizationDatasetCreateForm) {
+  return apiPost<QuantizationDatasetItem, QuantizationDatasetCreateForm>(
     '/mlops/quantization-datasets',
     data,
   )
 }
 
-export function updateQuantizationDataset(id: number, data: QuantizationDatasetForm) {
-  return apiPut<QuantizationDatasetItem, QuantizationDatasetForm>(
+export function updateQuantizationDataset(id: number, data: QuantizationDatasetUpdateForm) {
+  return apiPut<QuantizationDatasetItem, QuantizationDatasetUpdateForm>(
     `/mlops/quantization-datasets/${id}`,
     data,
   )
@@ -101,4 +107,18 @@ export function quantizationImageUrl(id: number, filename: string) {
 
 export function quantizationImageListUrl(id: number) {
   return apiAssetUrl(`/mlops/quantization-datasets/${id}/ref-img-list`)
+}
+
+export async function getQuantizationImageListText(id: number) {
+  const response = await http.get<Blob>(
+    `/mlops/quantization-datasets/${id}/ref-img-list`,
+    { responseType: 'blob' },
+  )
+  return response.data.text()
+}
+
+export function regenerateQuantizationImageList(id: number) {
+  return apiPost<QuantizationDatasetItem>(
+    `/mlops/quantization-datasets/${id}/ref-img-list/regenerate`,
+  )
 }

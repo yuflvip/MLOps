@@ -24,6 +24,12 @@ class QuantizationDatasetRepository:
         )
         return self._session.scalar(stmt)
 
+    def get_by_storage_path(self, storage_path: str) -> Optional[QuantizationDatasetModel]:
+        stmt = select(QuantizationDatasetModel).where(
+            QuantizationDatasetModel.storage_path == storage_path
+        )
+        return self._session.scalar(stmt)
+
     def list_paginated(
         self, *, page: int, page_size: int, name: Optional[str]
     ) -> Tuple[List[QuantizationDatasetModel], int]:

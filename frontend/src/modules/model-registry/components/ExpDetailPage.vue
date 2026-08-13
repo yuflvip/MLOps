@@ -27,36 +27,6 @@
     </div>
 
     <el-tabs v-model="activeTab" class="detail-tabs">
-      <el-tab-pane label="训练产物" name="artifacts">
-        <div class="section-heading">
-          <p>共 {{ artifacts.length }} 个文件，点击文件名称查看原始内容</p>
-        </div>
-
-        <el-table :data="artifacts" v-loading="loading" stripe>
-          <el-table-column label="序号" type="index" width="72" />
-          <el-table-column label="文件名称" min-width="220" show-overflow-tooltip>
-            <template #default="{ row }">
-              <el-button link type="primary" @click="openPreview(row as ExpArtifactItem)">
-                {{ row.name }}
-              </el-button>
-            </template>
-          </el-table-column>
-          <el-table-column prop="relative_path" label="相对路径" min-width="300" show-overflow-tooltip>
-            <template #default="{ row }">
-              <span class="font-mono path-text">{{ row.relative_path }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="size_bytes" label="大小" width="120">
-            <template #default="{ row }">{{ formatBytes(row.size_bytes) }}</template>
-          </el-table-column>
-          <el-table-column prop="modified_at" label="修改时间" width="170">
-            <template #default="{ row }">
-              <span class="font-mono">{{ formatTime(row.modified_at) }}</span>
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-tab-pane>
-
       <el-tab-pane label="模型产物" name="models">
         <div class="section-heading">
           <p>共 {{ modelArtifacts.length }} 个模型文件</p>
@@ -120,6 +90,36 @@
           <template #empty>
             <EmptyState description="暂无模型产物" />
           </template>
+        </el-table>
+      </el-tab-pane>
+
+      <el-tab-pane label="训练产物" name="artifacts">
+        <div class="section-heading">
+          <p>共 {{ artifacts.length }} 个文件，点击文件名称查看原始内容</p>
+        </div>
+
+        <el-table :data="artifacts" v-loading="loading" stripe>
+          <el-table-column label="序号" type="index" width="72" />
+          <el-table-column label="文件名称" min-width="220" show-overflow-tooltip>
+            <template #default="{ row }">
+              <el-button link type="primary" @click="openPreview(row as ExpArtifactItem)">
+                {{ row.name }}
+              </el-button>
+            </template>
+          </el-table-column>
+          <el-table-column prop="relative_path" label="相对路径" min-width="300" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span class="font-mono path-text">{{ row.relative_path }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="size_bytes" label="大小" width="120">
+            <template #default="{ row }">{{ formatBytes(row.size_bytes) }}</template>
+          </el-table-column>
+          <el-table-column prop="modified_at" label="修改时间" width="170">
+            <template #default="{ row }">
+              <span class="font-mono">{{ formatTime(row.modified_at) }}</span>
+            </template>
+          </el-table-column>
         </el-table>
       </el-tab-pane>
 
@@ -319,7 +319,7 @@ const exp = ref<ExpItem>()
 const project = ref<ProjectItem>()
 const artifacts = ref<ExpArtifactItem[]>([])
 const modelArtifacts = ref<ExpModelArtifactItem[]>([])
-const activeTab = ref('artifacts')
+const activeTab = ref('models')
 const conversionRecords = ref<ModelConversionItem[]>([])
 const loading = ref(false)
 const exportVisible = ref(false)

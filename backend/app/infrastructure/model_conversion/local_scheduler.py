@@ -264,28 +264,28 @@ class LocalModelConversionScheduler:
             runtime.script_path,
             "--model",
             str(source_path),
-            "--image-list",
+            "--image_list",
             str(image_list_path),
-            "--insert-op-conf",
+            "--insert_op_conf",
             str(insert_op_conf),
             "--output",
             str(output_path.with_suffix("")),
-            "--soc-version",
+            "--soc_version",
             str(params["soc_version"]),
-            "--compile-mode",
+            "--compile_mode",
             str(params["compile_mode"]),
-            "--output-type",
+            "--output_type",
             str(params["output_type"]),
-            "--quant-mode",
+            "--quant_mode",
             str(params["quant_mode"]),
-            "--online-model-type",
+            "--online_model_type",
             str(params["online_model_type"]),
         ]
         if params.get("input_shape"):
-            command.extend(["--input-shape", str(params["input_shape"])])
+            command.extend(["--input_shape", str(params["input_shape"])])
         if params.get("high_precision_layer"):
             command.extend(
-                ["--high-precision-layer", str(params["high_precision_layer"])]
+                ["--high_precision_layer", str(params["high_precision_layer"])]
             )
         if params.get("dry_run"):
             command.append("--dry-run")
@@ -305,17 +305,17 @@ class LocalModelConversionScheduler:
             runtime.script_path,
             "--model",
             str(source_path),
-            "--input-shape",
+            "--input_shape",
             str(params["input_shape"]),
-            "--insert-op-conf",
+            "--insert_op_conf",
             str(insert_op_conf),
             "--output",
             str(output_path.with_suffix("")),
-            "--soc-version",
+            "--soc_version",
             str(params["soc_version"]),
-            "--enable-single-stream",
+            "--enable_single_stream",
             "true" if params["enable_single_stream"] else "false",
-            "--enable-small-channel",
+            "--enable_small_channel",
             str(params["enable_small_channel"]),
         ]
         if params.get("dry_run"):

@@ -32,10 +32,9 @@
       <el-table-column label="修改时间" width="170">
         <template #default="{ row }">{{ formatTime(row.updated_at) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="245" fixed="right">
+      <el-table-column label="操作" width="190" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="openImages(row)">图片管理</el-button>
-          <el-button link type="primary" @click="downloadList(row)">下载TXT</el-button>
           <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
           <el-button link type="danger" @click="removeDataset(row)">删除</el-button>
         </template>
@@ -57,6 +56,14 @@
       <el-form label-position="top">
         <el-form-item label="名称" required>
           <el-input v-model="form.name" maxlength="128" />
+        </el-form-item>
+        <el-form-item v-if="!editing" label="目录名称" required>
+          <el-input
+            v-model="form.directory_name"
+            maxlength="128"
+            placeholder="例如 detect_6class"
+          />
+          <div class="field-tip">只能使用英文字母、数字、下划线和短横线</div>
         </el-form-item>
         <el-form-item label="说明">
           <el-input v-model="form.description" type="textarea" :rows="3" />
@@ -81,7 +88,6 @@ import {
   createQuantizationDataset,
   deleteQuantizationDataset,
   getQuantizationDatasetList,
-  quantizationImageListUrl,
   updateQuantizationDataset,
   type QuantizationDatasetItem,
 } from '@/shared/api/modules/quantization-datasets'
@@ -96,7 +102,7 @@ const total = ref(0)
 const keyword = ref('')
 const dialogVisible = ref(false)
 const editing = ref<QuantizationDatasetItem | null>(null)
-const form = reactive({ name: '', description: '' })
+const form = reactive({ name: '', directory_name: '', description: '' })
 
 async function fetchList() {
   loading.value = true
@@ -116,6 +122,7 @@ async function fetchList() {
 function openCreate() {
   editing.value = null
   form.name = ''
+  form.directory_name = ''
   form.description = ''
   dialogVisible.value = true
 }
@@ -124,6 +131,7 @@ function openEdit(row: unknown) {
   const item = row as QuantizationDatasetItem
   editing.value = item
   form.name = item.name
+  form.directory_name = ''
   form.description = item.description || ''
   dialogVisible.value = true
 }
@@ -133,11 +141,28 @@ async function save() {
     ElMessage.warning('请输入名称')
     return
   }
+  if (!editing.value && !form.directory_name.trim()) {
+    ElMessage.warning('请输入目录名称')
+    return
+  }
+  if (
+    !editing.value
+    && !/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(form.directory_name.trim())
+  ) {
+    ElMessage.warning('目录名称只能包含英文字母、数字、下划线和短横线，且必须以字母或数字开头')
+    return
+  }
   saving.value = true
   try {
-    const payload = { name: form.name, description: form.description || null }
-    if (editing.value) await updateQuantizationDataset(editing.value.id, payload)
-    else await createQuantizationDataset(payload)
+    const payload = { name: form.name.trim(), description: form.description.trim() || null }
+    if (editing.value) {
+      await updateQuantizationDataset(editing.value.id, payload)
+    } else {
+      await createQuantizationDataset({
+        ...payload,
+        directory_name: form.directory_name.trim(),
+      })
+    }
     dialogVisible.value = false
     ElMessage.success('保存成功')
     await fetchList()
@@ -149,11 +174,6 @@ async function save() {
 function openImages(row: unknown) {
   const item = row as QuantizationDatasetItem
   router.push(`/quantization-datasets/${item.id}`)
-}
-
-function downloadList(row: unknown) {
-  const item = row as QuantizationDatasetItem
-  window.open(quantizationImageListUrl(item.id), '_blank')
 }
 
 async function removeDataset(row: unknown) {
@@ -195,4 +215,5 @@ onMounted(fetchList)
   background: var(--panel);
 }
 .pagination-wrap { display: flex; justify-content: flex-end; margin-top: 18px; }
+.field-tip { margin-top: 4px; color: var(--txt-3); font-size: 12px; }
 </style>

@@ -3,7 +3,7 @@
     v-model="visible"
     title="导出海思3403"
     direction="rtl"
-    size="600px"
+    size="760px"
     :close-on-click-modal="false"
   >
     <el-form
@@ -11,7 +11,7 @@
       :model="form"
       :rules="rules"
       label-position="right"
-      label-width="230px"
+      label-width="300px"
       class="export-form"
     >
       <div class="form-section-title">模型与转换类型</div>
@@ -50,14 +50,14 @@
       </el-form-item>
 
       <div class="form-section-title">转换参数</div>
-      <el-form-item label="输入Shape（--input-shape）" prop="input_shape">
+      <el-form-item label="输入Shape（--input_shape）" prop="input_shape">
         <el-input
           v-model="form.input_shape"
           clearable
           placeholder="选填；自动解析失败时需填写，例如 images:1,3,640,640"
         />
       </el-form-item>
-      <el-form-item label="AIPP配置（--insert-op-conf）">
+      <el-form-item label="AIPP配置（--insert_op_conf）">
         <el-select v-model="form.insert_op_conf" style="width: 100%">
           <template v-if="form.conversion_type === 'svp_nnn'">
             <el-option label="insert_op.cfg（YOLO）" value="insert_op.cfg" />
@@ -72,29 +72,29 @@
       </el-form-item>
 
       <div v-if="form.conversion_type === 'svp_nnn'" class="two-column">
-        <el-form-item label="芯片版本（--soc-version）" prop="soc_version">
+        <el-form-item label="芯片版本（--soc_version）" prop="soc_version">
           <el-input v-model="form.soc_version" />
         </el-form-item>
-        <el-form-item label="编译模式（--compile-mode）" prop="compile_mode">
+        <el-form-item label="编译模式（--compile_mode）" prop="compile_mode">
           <el-input v-model="form.compile_mode" />
         </el-form-item>
-        <el-form-item label="输出类型（--output-type）">
+        <el-form-item label="输出类型（--output_type）">
           <el-input v-model="form.output_type" clearable />
         </el-form-item>
-        <el-form-item label="量化模式（--quant-mode）" prop="quant_mode">
+        <el-form-item label="量化模式（--quant_mode）" prop="quant_mode">
           <el-select v-model="form.quant_mode" style="width: 100%">
             <el-option label="0（速度优先）" value="0" />
             <el-option label="1（精度优先）" value="1" />
           </el-select>
         </el-form-item>
-        <el-form-item label="在线模型类型（--online-model-type）" prop="online_model_type">
+        <el-form-item label="在线模型类型（--online_model_type）" prop="online_model_type">
           <el-input v-model="form.online_model_type" />
         </el-form-item>
       </div>
 
       <el-form-item
         v-if="form.conversion_type === 'svp_nnn'"
-        label="高精度层（--high-precision-layer）"
+        label="高精度层（--high_precision_layer）"
       >
         <el-input
           v-model="form.high_precision_layer"
@@ -103,13 +103,13 @@
         />
       </el-form-item>
       <template v-else>
-        <el-form-item label="芯片版本（--soc-version）" prop="soc_version">
+        <el-form-item label="芯片版本（--soc_version）" prop="soc_version">
           <el-input v-model="form.soc_version" />
         </el-form-item>
-        <el-form-item label="单流模式（--enable-single-stream）">
+        <el-form-item label="单流模式（--enable_single_stream）">
           <el-switch v-model="form.enable_single_stream" />
         </el-form-item>
-        <el-form-item label="小通道优化（--enable-small-channel）">
+        <el-form-item label="小通道优化（--enable_small_channel）">
           <el-select v-model="form.enable_small_channel" style="width: 100%">
             <el-option label="1（启用）" :value="1" />
             <el-option label="0（禁用）" :value="0" />
@@ -407,76 +407,59 @@ function buildCommandPreview() {
   const scriptRoot = isSvp
     ? 'backend/scripts/model_conversion/hisi3403/svp_nnn'
     : 'backend/scripts/model_conversion/hisi3403/ascend_nnn'
-  if (!isSvp) {
-    const atcArgs = [
-      '--framework=5',
-      `--model=${shellQuote(sourcePath)}`,
-      `--input_shape=${shellQuote(form.input_shape.trim())}`,
-      `--insert_op_conf=${shellQuote(`${scriptRoot}/configs/${form.insert_op_conf}`)}`,
-      `--output=${shellQuote(outputPath)}`,
-      `--enable_single_stream=${String(form.enable_single_stream)}`,
-      `--enable_small_channel=${String(form.enable_small_channel)}`,
-      `--soc_version=${shellQuote(form.soc_version.trim())}`,
+  const atcArgs = [
+    '--framework=5',
+    `--model=${shellQuote(sourcePath)}`,
+    `--input_shape=${shellQuote(form.input_shape.trim())}`,
+    `--insert_op_conf=${shellQuote(`${scriptRoot}/configs/${form.insert_op_conf}`)}`,
+    `--output=${shellQuote(outputPath)}`,
+  ]
+  const environmentLines = isSvp
+    ? [
+      'source /usr/local/Ascend/ascend-toolkit/svp_latest/x86_64-linux/script/setenv.sh',
     ]
-    return [
+    : [
       'source /root/miniconda3/etc/profile.d/conda.sh',
       'conda activate ascend-env',
       'source /usr/local/Ascend/ascend-toolkit/latest/x86_64-linux/bin/setenv.bash',
       'export NPU_INCLUDE_PATH=/usr/local/Ascend/ascend-toolkit/latest/acllib/include/acl',
       'export NPU_LIB_PATH=/usr/local/Ascend/ascend-toolkit/latest/acllib/lib64/stub',
-      '',
-      'atc \\',
-      ...atcArgs.map((arg, index) => (
-        `  ${arg}${index < atcArgs.length - 1 ? ' \\' : ''}`
-      )),
-    ].join('\n')
-  }
-  const args = [
-    '/usr/bin/bash',
-    `${scriptRoot}/${isSvp ? 'export_svpnnn_om.sh' : 'export_nnn_om.sh'}`,
-    '--model',
-    sourcePath,
-  ]
+    ]
   if (isSvp) {
-    args.push('--image-list', dataset?.image_list_path || '')
-  }
-  args.push(
-    '--insert-op-conf',
-    `${scriptRoot}/configs/${form.insert_op_conf}`,
-    '--output',
-    outputPath,
-    '--soc-version',
-    form.soc_version.trim(),
-  )
-  if (isSvp) {
-    args.push(
-      '--compile-mode', form.compile_mode.trim(),
-      '--output-type', form.output_type.trim(),
-      '--quant-mode', form.quant_mode,
-      '--online-model-type', form.online_model_type.trim(),
+    atcArgs.push(
+      `--image_list=${shellQuote(dataset?.image_list_path || '')}`,
+      `--soc_version=${shellQuote(form.soc_version.trim())}`,
+      `--compile_mode=${shellQuote(form.compile_mode.trim())}`,
+      `--quant_mode=${shellQuote(form.quant_mode)}`,
+      `--online_model_type=${shellQuote(form.online_model_type.trim())}`,
+      '--weight_quant_per_channel=1',
+      '--matmul_per_channel_enable=0',
+      '--all_batch_quant_together_enable=1',
+      '--softmax_optimize_enable=1',
     )
-  } else {
-    args.push(
-      '--enable-single-stream', String(form.enable_single_stream),
-      '--enable-small-channel', String(form.enable_small_channel),
-    )
-  }
-  if (form.input_shape.trim()) {
-    args.push('--input-shape', form.input_shape.trim())
-  }
-  if (form.high_precision_layer.trim()) {
-    args.push('--high-precision-layer', form.high_precision_layer.trim())
-  }
-  const lines: string[] = []
-  for (let index = 0; index < args.length; index += 2) {
-    if (index === 0) {
-      lines.push(`${shellQuote(args[0])} ${shellQuote(args[1])} \\`)
-      continue
+    if (form.output_type.trim()) {
+      atcArgs.push(`--output_type=${shellQuote(form.output_type.trim())}`)
     }
-    const suffix = index + 2 < args.length ? ' \\' : ''
-    lines.push(`  ${args[index]} ${shellQuote(args[index + 1])}${suffix}`)
+    if (form.high_precision_layer.trim()) {
+      atcArgs.push(
+        `--high_precision_layer=${shellQuote(form.high_precision_layer.trim())}`,
+      )
+    }
+  } else {
+    atcArgs.push(
+      `--enable_single_stream=${String(form.enable_single_stream)}`,
+      `--enable_small_channel=${String(form.enable_small_channel)}`,
+      `--soc_version=${shellQuote(form.soc_version.trim())}`,
+    )
   }
-  return lines.join('\n')
+  return [
+    ...environmentLines,
+    '',
+    'atc \\',
+    ...atcArgs.map((arg, index) => (
+      `  ${arg}${index < atcArgs.length - 1 ? ' \\' : ''}`
+    )),
+  ].join('\n')
 }
 </script>
 
@@ -491,6 +474,10 @@ function buildCommandPreview() {
 :deep(.export-form .el-form-item__content > .el-input),
 :deep(.export-form .el-form-item__content > .el-select) {
   width: 100%;
+}
+
+:deep(.export-form .el-form-item__label) {
+  white-space: nowrap;
 }
 
 .two-column {

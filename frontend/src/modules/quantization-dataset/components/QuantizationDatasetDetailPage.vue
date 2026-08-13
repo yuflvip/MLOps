@@ -30,7 +30,16 @@
       <div class="list-path">
         <span>图片列表</span>
         <code>{{ dataset.image_list_path }}</code>
+        <el-button link type="primary" @click="previewList">预览TXT</el-button>
         <el-button link type="primary" @click="downloadList">下载TXT</el-button>
+        <el-button
+          link
+          type="primary"
+          :loading="regeneratingList"
+          @click="regenerateList"
+        >
+          重新生成TXT
+        </el-button>
       </div>
     </div>
 
@@ -79,18 +88,26 @@
       />
     </div>
 
-    <el-dialog v-model="previewVisible" :title="previewImage?.name" width="88vw" top="5vh">
-      <div class="large-preview">
-        <img
-          v-if="previewImage"
-          :src="imageUrl(previewImage.name)"
-          :alt="previewImage.name"
-        />
+    <el-image-viewer
+      v-if="previewVisible"
+      :url-list="previewUrls"
+      :initial-index="previewIndex"
+      hide-on-click-modal
+      @close="previewVisible = false"
+    />
+
+    <el-dialog
+      v-model="listPreviewVisible"
+      title="ref_img_list.txt"
+      width="min(960px, 90vw)"
+      top="7vh"
+    >
+      <div v-loading="listPreviewLoading">
+        <pre class="text-preview"><code>{{ listPreviewContent || '暂无图片记录' }}</code></pre>
       </div>
       <template #footer>
-        <span v-if="previewImage">
-          {{ formatBytes(previewImage.size_bytes) }} · {{ formatTime(previewImage.modified_at) }}
-        </span>
+        <el-button @click="listPreviewVisible = false">关闭</el-button>
+        <el-button type="primary" @click="downloadList">下载TXT</el-button>
       </template>
     </el-dialog>
   </div>
@@ -105,9 +122,11 @@ import { formatBytes, formatTime } from '@/shared/utils/format'
 import {
   deleteQuantizationImages,
   getQuantizationDataset,
+  getQuantizationImageListText,
   getQuantizationImages,
   quantizationImageListUrl,
   quantizationImageUrl,
+  regenerateQuantizationImageList,
   uploadQuantizationImage,
   type QuantizationDatasetItem,
   type QuantizationImageItem,
@@ -127,7 +146,12 @@ const selectedNames = ref(new Set<string>())
 const fileInput = ref<HTMLInputElement>()
 const uploadProgress = reactive({ current: 0, total: 0, name: '' })
 const previewVisible = ref(false)
-const previewImage = ref<QuantizationImageItem>()
+const previewIndex = ref(0)
+const previewUrls = computed(() => images.value.map(image => imageUrl(image.name)))
+const listPreviewVisible = ref(false)
+const listPreviewLoading = ref(false)
+const listPreviewContent = ref('')
+const regeneratingList = ref(false)
 const allPageSelected = computed(
   () => images.value.length > 0 && images.value.every(image => selectedNames.value.has(image.name)),
 )
@@ -214,12 +238,47 @@ async function removeSelected() {
 }
 
 function openPreview(image: QuantizationImageItem) {
-  previewImage.value = image
+  previewIndex.value = Math.max(
+    0,
+    images.value.findIndex(item => item.name === image.name),
+  )
   previewVisible.value = true
 }
 
 function downloadList() {
   window.open(quantizationImageListUrl(datasetId), '_blank')
+}
+
+async function previewList() {
+  listPreviewVisible.value = true
+  listPreviewLoading.value = true
+  try {
+    listPreviewContent.value = await getQuantizationImageListText(datasetId)
+  } finally {
+    listPreviewLoading.value = false
+  }
+}
+
+async function regenerateList() {
+  try {
+    await ElMessageBox.confirm(
+      '确认根据当前图片目录重新生成 ref_img_list.txt 吗？',
+      '重新生成确认',
+      { type: 'warning', confirmButtonText: '重新生成', cancelButtonText: '取消' },
+    )
+  } catch {
+    return
+  }
+  regeneratingList.value = true
+  try {
+    dataset.value = await regenerateQuantizationImageList(datasetId)
+    if (listPreviewVisible.value) {
+      listPreviewContent.value = await getQuantizationImageListText(datasetId)
+    }
+    ElMessage.success('ref_img_list.txt 已重新生成')
+  } finally {
+    regeneratingList.value = false
+  }
 }
 
 onMounted(async () => {
@@ -252,6 +311,7 @@ onMounted(async () => {
 .image-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  align-items: start;
   gap: 14px;
   min-height: 280px;
 }
@@ -269,7 +329,6 @@ onMounted(async () => {
 .image-meta { display: flex; flex-direction: column; gap: 5px; padding: 10px 12px; color: var(--txt2); font-size: 11px; }
 .image-name { overflow: hidden; color: var(--txt); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .pagination-wrap { display: flex; justify-content: flex-end; margin-top: 18px; }
-.large-preview { display: grid; place-items: center; height: 76vh; overflow: auto; background: #050b19; }
-.large-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.text-preview { min-height: 240px; max-height: 65vh; margin: 0; padding: 14px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; background: #071127; color: var(--txt); font-size: 12.5px; line-height: 1.6; white-space: pre; }
 :deep(.el-empty) { grid-column: 1 / -1; }
 </style>
