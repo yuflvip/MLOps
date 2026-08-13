@@ -112,6 +112,10 @@ export interface ModelConversionItem {
     quant_mode?: string
     high_precision_layer?: string
     online_model_type?: string
+    weight_quant_per_channel?: number
+    matmul_per_channel_enable?: number
+    all_batch_quant_together_enable?: number
+    softmax_optimize_enable?: number
     dry_run?: boolean
     enable_single_stream?: boolean
     enable_small_channel?: number
@@ -152,6 +156,10 @@ export interface Hisi3403ConversionCreatePayload {
     quant_mode: string
     high_precision_layer: string
     online_model_type: string
+    weight_quant_per_channel: 0 | 1
+    matmul_per_channel_enable: 0 | 1
+    all_batch_quant_together_enable: 0 | 1
+    softmax_optimize_enable: 0 | 1
     dry_run: boolean
     overwrite: boolean
   }

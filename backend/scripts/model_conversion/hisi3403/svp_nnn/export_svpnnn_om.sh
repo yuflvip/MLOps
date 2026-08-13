@@ -16,6 +16,10 @@ OUTPUT_TYPE="FP32"
 QUANT_MODE="1"
 HIGH_PRECISION_LAYER=""
 ONLINE_MODEL_TYPE="0"
+WEIGHT_QUANT_PER_CHANNEL="1"
+MATMUL_PER_CHANNEL_ENABLE="1"
+ALL_BATCH_QUANT_TOGETHER_ENABLE="1"
+SOFTMAX_OPTIMIZE_ENABLE="1"
 DRY_RUN=0
 
 usage() {
@@ -35,6 +39,10 @@ usage() {
   --quant_mode <值>
   --high_precision_layer <值>
   --online_model_type <值>
+  --weight_quant_per_channel <0|1>
+  --matmul_per_channel_enable <0|1>
+  --all_batch_quant_together_enable <0|1>
+  --softmax_optimize_enable <0|1>
   --dry-run
 EOF
 }
@@ -107,6 +115,10 @@ while [[ $# -gt 0 ]]; do
         --quant_mode) QUANT_MODE="${2:-}"; shift 2 ;;
         --high_precision_layer) HIGH_PRECISION_LAYER="${2:-}"; shift 2 ;;
         --online_model_type) ONLINE_MODEL_TYPE="${2:-}"; shift 2 ;;
+        --weight_quant_per_channel) WEIGHT_QUANT_PER_CHANNEL="${2:-}"; shift 2 ;;
+        --matmul_per_channel_enable) MATMUL_PER_CHANNEL_ENABLE="${2:-}"; shift 2 ;;
+        --all_batch_quant_together_enable) ALL_BATCH_QUANT_TOGETHER_ENABLE="${2:-}"; shift 2 ;;
+        --softmax_optimize_enable) SOFTMAX_OPTIMIZE_ENABLE="${2:-}"; shift 2 ;;
         --dry-run) DRY_RUN=1; shift ;;
         --help|-h) usage; exit 0 ;;
         *) die "未知参数：$1" ;;
@@ -120,6 +132,13 @@ done
 [[ -n "${COMPILE_MODE}" ]] || die "--compile_mode 不能为空"
 [[ -n "${QUANT_MODE}" ]] || die "--quant_mode 不能为空"
 [[ -n "${ONLINE_MODEL_TYPE}" ]] || die "--online_model_type 不能为空"
+for value_name in \
+    WEIGHT_QUANT_PER_CHANNEL \
+    MATMUL_PER_CHANNEL_ENABLE \
+    ALL_BATCH_QUANT_TOGETHER_ENABLE \
+    SOFTMAX_OPTIMIZE_ENABLE; do
+    [[ "${!value_name}" =~ ^[01]$ ]] || die "${value_name} 只能是 0 或 1"
+done
 
 MODEL_PATH="$(absolute_path "${MODEL_PATH}")"
 IMAGE_LIST_PATH="$(absolute_path "${IMAGE_LIST_PATH}")"
@@ -154,10 +173,10 @@ ATC_COMMAND=(
     --compile_mode="${COMPILE_MODE}"
     --quant_mode="${QUANT_MODE}"
     --online_model_type="${ONLINE_MODEL_TYPE}"
-    --weight_quant_per_channel=1
-    --matmul_per_channel_enable=0
-    --all_batch_quant_together_enable=1
-    --softmax_optimize_enable=1
+    --weight_quant_per_channel="${WEIGHT_QUANT_PER_CHANNEL}"
+    --matmul_per_channel_enable="${MATMUL_PER_CHANNEL_ENABLE}"
+    --all_batch_quant_together_enable="${ALL_BATCH_QUANT_TOGETHER_ENABLE}"
+    --softmax_optimize_enable="${SOFTMAX_OPTIMIZE_ENABLE}"
 )
 
 if [[ -n "${OUTPUT_TYPE}" ]]; then
@@ -179,6 +198,10 @@ printf '  output_type          : %s\n' "${OUTPUT_TYPE:-<空>}"
 printf '  quant_mode           : %s\n' "${QUANT_MODE}"
 printf '  high_precision_layer : %s\n' "${HIGH_PRECISION_LAYER:-<空>}"
 printf '  online_model_type    : %s\n' "${ONLINE_MODEL_TYPE}"
+printf '  weight_quant_per_channel          : %s\n' "${WEIGHT_QUANT_PER_CHANNEL}"
+printf '  matmul_per_channel_enable         : %s\n' "${MATMUL_PER_CHANNEL_ENABLE}"
+printf '  all_batch_quant_together_enable   : %s\n' "${ALL_BATCH_QUANT_TOGETHER_ENABLE}"
+printf '  softmax_optimize_enable           : %s\n' "${SOFTMAX_OPTIMIZE_ENABLE}"
 printf 'ATC命令：\n'
 printf '  '
 printf '%q ' "${ATC_COMMAND[@]}"

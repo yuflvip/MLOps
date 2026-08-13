@@ -249,6 +249,10 @@ class ModelConversionService:
             "quant_mode",
             "high_precision_layer",
             "online_model_type",
+            "weight_quant_per_channel",
+            "matmul_per_channel_enable",
+            "all_batch_quant_together_enable",
+            "softmax_optimize_enable",
             "dry_run",
             "overwrite",
         }
@@ -320,6 +324,22 @@ class ModelConversionService:
                 name="online_model_type",
                 max_length=32,
             ),
+            "weight_quant_per_channel": self._binary_option(
+                params.get("weight_quant_per_channel", 1),
+                name="weight_quant_per_channel",
+            ),
+            "matmul_per_channel_enable": self._binary_option(
+                params.get("matmul_per_channel_enable", 1),
+                name="matmul_per_channel_enable",
+            ),
+            "all_batch_quant_together_enable": self._binary_option(
+                params.get("all_batch_quant_together_enable", 1),
+                name="all_batch_quant_together_enable",
+            ),
+            "softmax_optimize_enable": self._binary_option(
+                params.get("softmax_optimize_enable", 1),
+                name="softmax_optimize_enable",
+            ),
             "dry_run": bool(params.get("dry_run", False)),
             "overwrite": bool(params.get("overwrite", False)),
         }
@@ -374,6 +394,14 @@ class ModelConversionService:
             "dry_run": bool(params.get("dry_run", False)),
             "overwrite": bool(params.get("overwrite", False)),
         }
+
+    @staticmethod
+    def _binary_option(value: Any, *, name: str) -> int:
+        if isinstance(value, bool):
+            return int(value)
+        if value not in {0, 1, "0", "1"}:
+            raise ExpValidationError("%s must be 0 or 1" % name)
+        return int(value)
 
     @staticmethod
     def _required_text(value: Any, *, name: str, max_length: int) -> str:

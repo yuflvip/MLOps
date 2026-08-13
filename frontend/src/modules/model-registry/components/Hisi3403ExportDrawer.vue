@@ -3,7 +3,7 @@
     v-model="visible"
     title="导出海思3403"
     direction="rtl"
-    size="760px"
+    size="900px"
     :close-on-click-modal="false"
   >
     <el-form
@@ -11,7 +11,7 @@
       :model="form"
       :rules="rules"
       label-position="right"
-      label-width="300px"
+      label-width="410px"
       class="export-form"
     >
       <div class="form-section-title">模型与转换类型</div>
@@ -89,6 +89,30 @@
         </el-form-item>
         <el-form-item label="在线模型类型（--online_model_type）" prop="online_model_type">
           <el-input v-model="form.online_model_type" />
+        </el-form-item>
+        <el-form-item label="权重量化分通道（--weight_quant_per_channel）">
+          <el-select v-model="form.weight_quant_per_channel" style="width: 100%">
+            <el-option label="1（启用）" :value="1" />
+            <el-option label="0（禁用）" :value="0" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="矩阵乘分通道（--matmul_per_channel_enable）">
+          <el-select v-model="form.matmul_per_channel_enable" style="width: 100%">
+            <el-option label="1（启用）" :value="1" />
+            <el-option label="0（禁用）" :value="0" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="批次联合量化（--all_batch_quant_together_enable）">
+          <el-select v-model="form.all_batch_quant_together_enable" style="width: 100%">
+            <el-option label="1（启用）" :value="1" />
+            <el-option label="0（禁用）" :value="0" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="Softmax优化（--softmax_optimize_enable）">
+          <el-select v-model="form.softmax_optimize_enable" style="width: 100%">
+            <el-option label="1（启用）" :value="1" />
+            <el-option label="0（禁用）" :value="0" />
+          </el-select>
         </el-form-item>
       </div>
 
@@ -197,6 +221,10 @@ const form = reactive({
   quant_mode: '1',
   high_precision_layer: '',
   online_model_type: '0',
+  weight_quant_per_channel: 1 as 0 | 1,
+  matmul_per_channel_enable: 1 as 0 | 1,
+  all_batch_quant_together_enable: 1 as 0 | 1,
+  softmax_optimize_enable: 1 as 0 | 1,
   enable_single_stream: true,
   enable_small_channel: 1 as 0 | 1,
   dry_run: false,
@@ -288,6 +316,10 @@ function resetForm() {
   form.quant_mode = '1'
   form.high_precision_layer = ''
   form.online_model_type = '0'
+  form.weight_quant_per_channel = 1
+  form.matmul_per_channel_enable = 1
+  form.all_batch_quant_together_enable = 1
+  form.softmax_optimize_enable = 1
   form.enable_single_stream = true
   form.enable_small_channel = 1
   form.dry_run = false
@@ -364,6 +396,10 @@ async function handleSubmit() {
           quant_mode: form.quant_mode,
           high_precision_layer: form.high_precision_layer.trim(),
           online_model_type: form.online_model_type.trim(),
+          weight_quant_per_channel: form.weight_quant_per_channel,
+          matmul_per_channel_enable: form.matmul_per_channel_enable,
+          all_batch_quant_together_enable: form.all_batch_quant_together_enable,
+          softmax_optimize_enable: form.softmax_optimize_enable,
           dry_run: false,
           overwrite: form.overwrite,
         },
@@ -432,10 +468,10 @@ function buildCommandPreview() {
       `--compile_mode=${shellQuote(form.compile_mode.trim())}`,
       `--quant_mode=${shellQuote(form.quant_mode)}`,
       `--online_model_type=${shellQuote(form.online_model_type.trim())}`,
-      '--weight_quant_per_channel=1',
-      '--matmul_per_channel_enable=0',
-      '--all_batch_quant_together_enable=1',
-      '--softmax_optimize_enable=1',
+      `--weight_quant_per_channel=${form.weight_quant_per_channel}`,
+      `--matmul_per_channel_enable=${form.matmul_per_channel_enable}`,
+      `--all_batch_quant_together_enable=${form.all_batch_quant_together_enable}`,
+      `--softmax_optimize_enable=${form.softmax_optimize_enable}`,
     )
     if (form.output_type.trim()) {
       atcArgs.push(`--output_type=${shellQuote(form.output_type.trim())}`)

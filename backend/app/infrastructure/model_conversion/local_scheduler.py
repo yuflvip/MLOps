@@ -280,6 +280,14 @@ class LocalModelConversionScheduler:
             str(params["quant_mode"]),
             "--online_model_type",
             str(params["online_model_type"]),
+            "--weight_quant_per_channel",
+            str(params.get("weight_quant_per_channel", 1)),
+            "--matmul_per_channel_enable",
+            str(params.get("matmul_per_channel_enable", 1)),
+            "--all_batch_quant_together_enable",
+            str(params.get("all_batch_quant_together_enable", 1)),
+            "--softmax_optimize_enable",
+            str(params.get("softmax_optimize_enable", 1)),
         ]
         if params.get("input_shape"):
             command.extend(["--input_shape", str(params["input_shape"])])
