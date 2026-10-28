@@ -1,8 +1,10 @@
 import asyncio
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import shlex
+import shutil
 from typing import Any
 
 from sqlalchemy import select
@@ -87,6 +89,7 @@ class LocalModelConversionScheduler:
                 return
             session = self._session_factory()
             process_output_path: Path | None = None
+            process_source_path: Path | None = None
             try:
                 item = session.get(ModelConversionModel, conversion_id)
                 if item is None or item.status != "queued":
@@ -113,6 +116,18 @@ class LocalModelConversionScheduler:
                     % (output_path.stem, item.id, item.target_format)
                 )
                 process_output_path.unlink(missing_ok=True)
+
+                command_source_path = source_path
+                if item.converter_code == "yolo_to_onnx":
+                    process_source_path = process_output_path.with_suffix(
+                        source_path.suffix
+                    )
+                    process_source_path.unlink(missing_ok=True)
+                    try:
+                        os.link(source_path, process_source_path)
+                    except OSError:
+                        shutil.copy2(source_path, process_source_path)
+                    command_source_path = process_source_path
 
                 if item.converter_code in {
                     "onnx_to_hisi3403",
@@ -142,7 +157,7 @@ class LocalModelConversionScheduler:
                 command = self._build_command(
                     converter_code=item.converter_code,
                     runtime=runtime,
-                    source_path=source_path,
+                    source_path=command_source_path,
                     output_path=process_output_path,
                     params=json.loads(item.params_json or "{}"),
                 )
@@ -199,6 +214,8 @@ class LocalModelConversionScheduler:
                     process_output_path.unlink(missing_ok=True)
                 self._mark_failed(conversion_id, str(exc))
             finally:
+                if process_source_path is not None:
+                    process_source_path.unlink(missing_ok=True)
                 self._processes.pop(conversion_id, None)
                 session.close()
 
@@ -225,6 +242,12 @@ class LocalModelConversionScheduler:
                 output_path=output_path,
                 params=params,
             )
+        if converter_code == "yolo_to_onnx":
+            return self._build_yolo_command(
+                runtime=runtime,
+                source_path=source_path,
+                params=params,
+            )
         command = [
             runtime.python_path,
             runtime.script_path,
@@ -245,6 +268,21 @@ class LocalModelConversionScheduler:
             command.append("--simplify")
         if params.get("dynamo"):
             command.append("--dynamo")
+        return command
+
+    def _build_yolo_command(
+        self, *, runtime, source_path: Path, params: dict[str, Any]
+    ) -> list[str]:
+        command = [
+            runtime.python_path,
+            "export",
+            "model=%s" % source_path,
+            "format=onnx",
+            "imgsz=%s" % params["imgsz"],
+            "end2end=%s" % str(params["end2end"]),
+        ]
+        if params.get("opset") is not None:
+            command.append("opset=%s" % params["opset"])
         return command
 
     def _build_hisi3403_command(

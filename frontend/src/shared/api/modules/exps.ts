@@ -119,6 +119,7 @@ export interface ModelConversionItem {
     dry_run?: boolean
     enable_single_stream?: boolean
     enable_small_channel?: number
+    end2end?: boolean
   }
   result_files: string[]
   log_path: string | null
@@ -129,15 +130,16 @@ export interface ModelConversionItem {
 }
 
 export interface OnnxConversionCreatePayload {
-  converter_code: 'hgnet_to_onnx'
+  converter_code: 'hgnet_to_onnx' | 'yolo_to_onnx'
   source_file: string
   output_file: string
   params: {
-    device: 'cpu' | 'cuda'
+    device?: 'cpu' | 'cuda'
     imgsz: string
-    opset: number
-    simplify: boolean
-    dynamo: boolean
+    opset?: number
+    end2end?: boolean
+    simplify?: boolean
+    dynamo?: boolean
     overwrite: boolean
   }
 }

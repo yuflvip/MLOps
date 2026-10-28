@@ -30,6 +30,7 @@ cd backend
 ```bash
 cd backend
 ./.venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 18087
+./.venv/bin/python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 18087
 ```
 
 说明：

@@ -63,7 +63,7 @@
                   v-if="isPtArtifact(row as ExpModelArtifactItem)"
                   type="primary"
                   size="small"
-                  :disabled="project?.model_architecture !== 'HGNetV2'"
+                  :disabled="!canExportOnnx(row as ExpModelArtifactItem)"
                   @click="openOnnxExport(row as ExpModelArtifactItem)"
                 >
                   导出ONNX
@@ -271,6 +271,7 @@
       v-model="exportVisible"
       :exp-id="exp.id"
       :artifact="exportArtifact"
+      :model-architecture="project?.model_architecture"
       @submitted="handleConversionSubmitted"
     />
     <Hisi3403ExportDrawer
@@ -358,6 +359,13 @@ function isPtArtifact(artifact: ExpArtifactItem) {
 
 function isOnnxArtifact(artifact: ExpArtifactItem) {
   return artifact.extension.toLowerCase() === 'onnx'
+}
+
+function canExportOnnx(artifact: ExpArtifactItem) {
+  const architecture = project.value?.model_architecture
+  if (architecture === 'HGNetV2') return isPtArtifact(artifact)
+  return ['YOLOv8', 'YOLOv26'].includes(architecture || '')
+    && artifact.extension.toLowerCase() === 'pt'
 }
 
 function openOnnxExport(artifact: ExpModelArtifactItem) {
@@ -460,6 +468,7 @@ async function handleConversionSubmitted() {
 
 function conversionTypeLabel(converterCode: string) {
   if (converterCode === 'hgnet_to_onnx') return 'HGNet → ONNX'
+  if (converterCode === 'yolo_to_onnx') return 'YOLO → ONNX'
   if (converterCode === 'onnx_to_hisi3403') return 'ONNX → 海思 SVP_NNN'
   if (converterCode === 'onnx_to_hisi3403_ascend_nnn') return 'ONNX → 昇腾 NNN'
   return converterCode
@@ -472,6 +481,10 @@ function conversionParamsLabel(item: ModelConversionItem) {
   }
   if (item.converter_code === 'onnx_to_hisi3403_ascend_nnn') {
     return `${params.soc_version || '-'} / 单流 ${params.enable_single_stream ? '启用' : '禁用'} / 小通道 ${params.enable_small_channel ?? '-'}`
+  }
+  if (item.converter_code === 'yolo_to_onnx') {
+    const opset = item.params.opset == null ? '默认' : item.params.opset
+    return `${item.params.imgsz || '-'} / end2end ${item.params.end2end ? '开启' : '关闭'} / opset ${opset}`
   }
   return `${params.device?.toUpperCase() || '-'} / ${params.imgsz || '-'} / opset ${params.opset || '-'}`
 }

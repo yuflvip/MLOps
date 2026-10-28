@@ -26,6 +26,12 @@ CONVERTER_METADATA = {
         "target_format": "onnx",
         "architectures": {"hgnetv2"},
     },
+    "yolo_to_onnx": {
+        "source_formats": {"pt"},
+        "target_platform": "onnx",
+        "target_format": "onnx",
+        "architectures": {"yolov8", "yolov26"},
+    },
     "onnx_to_hisi3403": {
         "source_formats": {"onnx"},
         "target_platform": "hisi3403",
@@ -142,6 +148,8 @@ class ModelConversionService:
             )
         if converter_code == "hgnet_to_onnx":
             normalized_params = self._validate_hgnet_params(params)
+        elif converter_code == "yolo_to_onnx":
+            normalized_params = self._validate_yolo_params(params)
         elif converter_code == "onnx_to_hisi3403_ascend_nnn":
             normalized_params = self._validate_ascend_nnn_params(params)
         else:
@@ -235,6 +243,46 @@ class ModelConversionService:
             "opset": opset,
             "simplify": bool(params.get("simplify", False)),
             "dynamo": bool(params.get("dynamo", False)),
+            "overwrite": bool(params.get("overwrite", False)),
+        }
+
+    def _validate_yolo_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        allowed = {"imgsz", "end2end", "opset", "overwrite"}
+        unknown = set(params) - allowed
+        if unknown:
+            raise ExpValidationError(
+                "Unsupported conversion parameters: %s" % ", ".join(sorted(unknown))
+            )
+
+        imgsz = str(params.get("imgsz", "640")).strip()
+        parts = [part.strip() for part in imgsz.split(",") if part.strip()]
+        try:
+            sizes = [int(part) for part in parts]
+        except ValueError as exc:
+            raise ExpValidationError("imgsz must be a positive integer or h,w") from exc
+        if len(sizes) not in {1, 2} or any(size <= 0 for size in sizes):
+            raise ExpValidationError("imgsz must be a positive integer or h,w")
+
+        raw_end2end = params.get("end2end", False)
+        if not isinstance(raw_end2end, bool):
+            raise ExpValidationError("end2end must be a boolean")
+
+        raw_opset = params.get("opset")
+        if raw_opset is None or raw_opset == "":
+            opset = None
+        elif (
+            isinstance(raw_opset, bool)
+            or not isinstance(raw_opset, int)
+            or not 7 <= raw_opset <= 21
+        ):
+            raise ExpValidationError("opset must be empty or an integer between 7 and 21")
+        else:
+            opset = raw_opset
+
+        return {
+            "imgsz": ",".join(str(size) for size in sizes),
+            "end2end": raw_end2end,
+            "opset": opset,
             "overwrite": bool(params.get("overwrite", False)),
         }
 

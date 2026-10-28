@@ -42,6 +42,10 @@ model_conversion:
       python_path: "/root/miniconda3/envs/convnext-env/bin/python"
       working_dir: "/mnt/yolo_tool/build/convnext_cls"
       script_path: "/mnt/yolo_tool/build/convnext_cls/tools/export.py"
+    yolo_to_onnx:
+      enabled: true
+      python_path: "/root/miniconda3/envs/yolov8-env/bin/yolo"
+      working_dir: "."
     onnx_to_hisi3403:
       enabled: true
       python_path: "/usr/bin/bash"
