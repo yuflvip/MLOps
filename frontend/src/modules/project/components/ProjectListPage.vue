@@ -1,6 +1,6 @@
 <template>
   <div class="project-list-page">
-    <PageHeader title="模型族管理" subtitle="维护模型族标识与关联数据集">
+    <PageHeader title="模型族管理" subtitle="维护模型族、关联数据集及打包配置">
       <template #actions>
         <el-button :icon="Refresh" circle @click="handleRefresh" />
         <el-button type="primary" @click="openCreateDrawer">
@@ -12,37 +12,16 @@
     <div class="filter-card glow-card">
       <el-form :inline="true" class="filter-form" @submit.prevent="handleSearch">
         <el-form-item class="inline-filter-item">
-          <span class="inline-filter-label">模型族标识</span>
-          <el-input
-            v-model="projectFilter"
-            class="filter-input filter-input-project"
-            placeholder="按模型族标识查询"
-            clearable
-            @keyup.enter="handleSearch"
-          />
-        </el-form-item>
-        <el-form-item class="inline-filter-item">
           <span class="inline-filter-label">模型类型</span>
-          <el-select
-            v-model="modelTypeFilter"
-            class="filter-input filter-input-type"
-            placeholder="全部类型"
-            clearable
-          >
+          <el-select v-model="modelTypeFilter" class="filter-input filter-input-type" placeholder="全部类型" clearable>
             <el-option label="分类器" value="classification" />
             <el-option label="检测器" value="detection" />
             <el-option label="轮廓分割" value="segmentation" />
           </el-select>
         </el-form-item>
         <el-form-item class="inline-filter-item">
-          <span class="inline-filter-label">名称</span>
-          <el-input
-            v-model="nameFilter"
-            class="filter-input filter-input-name"
-            placeholder="按名称查询"
-            clearable
-            @keyup.enter="handleSearch"
-          />
+          <span class="inline-filter-label">模型</span>
+          <el-input v-model="modelFilter" class="filter-input filter-input-project" placeholder="输入模型族标识或名称" clearable @keyup.enter="handleSearch" />
         </el-form-item>
         <div class="filter-actions">
           <el-button type="primary" @click="handleSearch">查询</el-button>
@@ -65,9 +44,9 @@
       <el-table-column prop="model_architecture" label="模型架构" width="130">
         <template #default="{ row }">{{ row.model_architecture || '-' }}</template>
       </el-table-column>
-      <el-table-column prop="epochs" label="epochs" width="96" />
-      <el-table-column prop="batch" label="batch" width="96" />
-      <el-table-column prop="imgsz" label="imgsz" width="96" />
+      <el-table-column label="模型软链接主名称" min-width="240" show-overflow-tooltip>
+        <template #default="{ row }">{{ modelLinkBase(row) }}</template>
+      </el-table-column>
       <el-table-column label="绑定数据集" min-width="260">
         <template #default="{ row }">
           <div class="dataset-tag-list">
@@ -138,8 +117,7 @@ const {
   page,
   pageSize,
   total,
-  projectFilter,
-  nameFilter,
+  modelFilter,
   modelTypeFilter,
   onPageChange,
   onSizeChange,
@@ -159,6 +137,10 @@ function resolveDatasets(ids: number[]) {
   return ids
     .map(id => datasetMap.value[id])
     .filter((item): item is DatasetItem => Boolean(item))
+}
+
+function modelLinkBase(project: ProjectItem) {
+  return Object.values(project.packaging?.model_links || {}).find(Boolean)?.replace(/\.(bin|weights)$/, '') || '-'
 }
 
 function modelTypeLabel(value: string | null) {

@@ -15,7 +15,6 @@ from app.infrastructure.config import (
     resolve_config_path,
 )
 from app.infrastructure.db import (
-    Base,
     build_session_factory,
     normalize_database_url,
 )
@@ -23,6 +22,7 @@ from app.infrastructure.scheduler import (
     SchedulerManager,
     register_scheduler_jobs,
 )
+from app.infrastructure.db.migrations import initialize_database
 from app.infrastructure.repositories import TaskRepository
 from app.infrastructure.model_conversion import LocalModelConversionScheduler
 
@@ -48,7 +48,7 @@ def build_container(config_path: Optional[Union[Path, str]] = None) -> Applicati
     session_factory = build_session_factory(
         normalize_database_url(settings.database.url, config_dir.parent)
     )
-    Base.metadata.create_all(session_factory.kw["bind"])
+    initialize_database(session_factory.kw["bind"], resolved_config_path)
     scheduler_manager = SchedulerManager(
         enabled=settings.scheduler.enabled,
         timezone=settings.scheduler.timezone,

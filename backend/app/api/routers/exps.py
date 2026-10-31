@@ -187,7 +187,7 @@ async def import_exps(
     request_context=Depends(get_request_context),
 ):
     try:
-        result = service.import_exps(project_id, payload.relative_paths)
+        result = service.import_exps(project_id, payload.relative_paths, model_frameworks=payload.model_frameworks)
     except DomainError as exc:
         raise_api_error_for_domain_error(exc)
     return build_success_response(

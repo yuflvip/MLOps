@@ -1,3 +1,19 @@
+export const packagingPlatforms = ['x86', '692', '530', '3403svp', '3403nnn', 'rk3588'] as const
+export type PackagingPlatform = typeof packagingPlatforms[number]
+export interface ProjectPackagingConfig {
+  model_links: Partial<Record<PackagingPlatform, string>>
+  cfg_link: string
+  names_link: string
+  cfg_filename: string
+  cfg_content: string
+  names_filename: string
+  names_content: string
+}
+export function emptyPackaging(): ProjectPackagingConfig {
+  return { model_links: {}, cfg_link: '', names_link: '',
+    cfg_filename: 'model.cfg', cfg_content: '', names_filename: 'obj.names', names_content: '' }
+}
+
 import { apiDelete, apiGet, apiPost, apiPut } from '../client'
 import type { PaginatedData } from '@/shared/types'
 
@@ -9,6 +25,7 @@ export interface ProjectItem {
   model_architecture: string | null
   description: string | null
   exp_root_path: string | null
+  packaging?: ProjectPackagingConfig
   dataset_ids: number[]
   epochs: number | null
   batch: number | null
@@ -18,6 +35,7 @@ export interface ProjectItem {
 }
 
 export interface ProjectListParams {
+  keyword?: string
   page?: number
   page_size?: number
   project?: string
@@ -32,6 +50,7 @@ export interface ProjectFormPayload {
   model_architecture: string
   description?: string | null
   exp_root_path: string
+  packaging?: ProjectPackagingConfig
   dataset_ids: number[]
   epochs?: number | null
   batch?: number | null

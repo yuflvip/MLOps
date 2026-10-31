@@ -80,7 +80,12 @@ class QuantizationDatasetSettings(BaseModel):
     max_image_size_mb: int = Field(default=100, ge=1)
 
 
+class ModelPackagingSettings(BaseModel):
+    deploy_dir: str = "/opt/AII/YoloModel"
+
+
 class Settings(BaseModel):
+    model_packaging: ModelPackagingSettings = Field(default_factory=ModelPackagingSettings)
     app: AppSettings = Field(default_factory=AppSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)

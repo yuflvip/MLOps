@@ -8,8 +8,7 @@ export function useProjectList() {
   const { page, pageSize, total, setTotal, onPageChange, onSizeChange } = usePagination(20)
 
   const items = ref<ProjectItem[]>([])
-  const projectFilter = ref('')
-  const nameFilter = ref('')
+  const modelFilter = ref('')
   const modelTypeFilter = ref('')
 
   async function fetchList() {
@@ -17,8 +16,7 @@ export function useProjectList() {
       const data = await getProjectList({
         page: page.value,
         page_size: pageSize.value,
-        project: projectFilter.value || undefined,
-        name: nameFilter.value || undefined,
+        keyword: modelFilter.value.trim() || undefined,
         model_type: modelTypeFilter.value || undefined,
       })
       items.value = data.items
@@ -27,8 +25,7 @@ export function useProjectList() {
   }
 
   function resetFilters() {
-    projectFilter.value = ''
-    nameFilter.value = ''
+    modelFilter.value = ''
     modelTypeFilter.value = ''
     onPageChange(1)
   }
@@ -39,8 +36,7 @@ export function useProjectList() {
     page,
     pageSize,
     total,
-    projectFilter,
-    nameFilter,
+    modelFilter,
     modelTypeFilter,
     onPageChange,
     onSizeChange,

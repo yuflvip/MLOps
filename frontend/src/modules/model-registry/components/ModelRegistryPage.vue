@@ -10,6 +10,14 @@
     <div class="filter-card glow-card">
       <el-form :inline="true" class="filter-form" @submit.prevent="handleSearch">
         <el-form-item class="inline-filter-item">
+          <span class="inline-filter-label">模型类型</span>
+          <el-select v-model="modelTypeFilter" class="status-filter" placeholder="全部类型" clearable>
+            <el-option label="分类器" value="classification" />
+            <el-option label="检测器" value="detection" />
+            <el-option label="轮廓分割" value="segmentation" />
+          </el-select>
+        </el-form-item>
+        <el-form-item class="inline-filter-item">
           <span class="inline-filter-label">模型族</span>
           <el-select
             v-model="projectIdFilter"
@@ -18,7 +26,7 @@
             filterable
             clearable
           >
-            <el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" />
+            <el-option v-for="project in filteredProjects" :key="project.id" :label="project.name" :value="project.id" />
           </el-select>
         </el-form-item>
         <el-form-item class="inline-filter-item">
@@ -27,14 +35,6 @@
             <el-option label="待审核" value="pending_review" />
             <el-option label="已审核" value="approved" />
             <el-option label="审核不通过" value="rejected" />
-          </el-select>
-        </el-form-item>
-        <el-form-item class="inline-filter-item">
-          <span class="inline-filter-label">模型类型</span>
-          <el-select v-model="modelTypeFilter" class="status-filter" placeholder="全部类型" clearable>
-            <el-option label="分类器" value="classification" />
-            <el-option label="检测器" value="detection" />
-            <el-option label="轮廓分割" value="segmentation" />
           </el-select>
         </el-form-item>
         <div class="filter-actions">
@@ -59,7 +59,13 @@
       <el-table-column prop="resolved_path" label="实验路径" min-width="300" show-overflow-tooltip>
         <template #default="{ row }"><span class="font-mono path-text">{{ row.resolved_path }}</span></template>
       </el-table-column>
-      <el-table-column prop="version" label="正式版本" width="120">
+      <el-table-column prop="model_size" label="模型尺寸" width="130">
+        <template #default="{ row }">{{ row.model_size || '未知' }}</template>
+      </el-table-column>
+      <el-table-column prop="model_framework" label="模型框架" width="150">
+        <template #default="{ row }">{{ row.model_framework || '未知' }}</template>
+      </el-table-column>
+      <el-table-column prop="version" label="版本" width="170">
         <template #default="{ row }"><span class="font-mono">{{ row.version || '-' }}</span></template>
       </el-table-column>
       <el-table-column label="mAP/Acc" width="170">
@@ -132,7 +138,7 @@
       />
     </div>
 
-    <el-dialog v-model="importVisible" title="导入实验" width="680px" :close-on-click-modal="false">
+    <el-dialog v-model="importVisible" title="导入实验" width="min(1060px, 95vw)" :close-on-click-modal="false">
       <el-form label-position="top">
         <el-form-item label="模型族" required>
           <el-select
@@ -166,6 +172,16 @@
       >
         <el-table-column type="selection" width="48" :selectable="row => !row.already_imported" />
         <el-table-column prop="name" label="实验目录" min-width="260" show-overflow-tooltip />
+        <el-table-column label="模型框架" min-width="190">
+          <template #default="{ row }">
+            <el-select v-model="row.model_framework" filterable :disabled="row.already_imported" placeholder="未识别，请选择" style="width: 100%">
+              <el-option v-for="framework in modelFrameworkOptions" :key="framework" :label="framework" :value="framework" />
+            </el-select>
+          </template>
+        </el-table-column>
+        <el-table-column label="模型尺寸" width="130">
+          <template #default="{ row }">{{ row.model_size || '未知' }}</template>
+        </el-table-column>
         <el-table-column prop="modified_at" label="目录修改时间" width="170">
           <template #default="{ row }">{{ formatTime(row.modified_at) }}</template>
         </el-table-column>
@@ -196,8 +212,8 @@
         <el-form-item label="实验">
           <el-input :model-value="approvingExp?.name" disabled />
         </el-form-item>
-        <el-form-item label="正式版本号" prop="version">
-          <el-input v-model="approveForm.version" placeholder="例如 v1.0" />
+        <el-form-item label="版本" prop="version">
+          <el-input v-model="approveForm.version" placeholder="默认结束训练时间 yyyyMMddHHmmss" />
         </el-form-item>
         <el-form-item label="版本说明">
           <el-input v-model="approveForm.description" type="textarea" :rows="3" placeholder="选填" />
@@ -212,7 +228,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { ArrowDown, Refresh, Upload } from '@element-plus/icons-vue'
@@ -223,6 +239,7 @@ import {
   deleteExp,
   getExpCandidates,
   importExps,
+  modelFrameworkOptions,
   rejectExp,
   type ExpCandidate,
   type ExpItem,
@@ -251,8 +268,18 @@ const approving = ref(false)
 const approveFormRef = ref<FormInstance>()
 const approveForm = reactive({ version: '', description: '' })
 const approveRules: FormRules<typeof approveForm> = {
-  version: [{ required: true, message: '请输入正式版本号', trigger: 'blur' }],
+  version: [{ required: true, message: '请输入版本', trigger: 'blur' }],
 }
+
+const filteredProjects = computed(() => projects.value.filter(project =>
+  !modelTypeFilter.value || project.model_type === modelTypeFilter.value,
+))
+
+watch(filteredProjects, (options) => {
+  if (projectIdFilter.value != null && !options.some(project => project.id === projectIdFilter.value)) {
+    projectIdFilter.value = undefined
+  }
+}, { flush: 'sync' })
 
 const projectMap = computed(() => Object.fromEntries(projects.value.map(project => [project.id, project])))
 const importableProjects = computed(() => projects.value.filter(project => Boolean(project.exp_root_path)))
@@ -300,8 +327,15 @@ function handleRowCommand(command: string, exp: ExpItem) {
 }
 
 async function fetchProjects() {
-  const data = await getProjectList({ page: 1, page_size: 200 })
-  projects.value = data.items
+  const allProjects: ProjectItem[] = []
+  let nextPage = 1
+  while (true) {
+    const data = await getProjectList({ page: nextPage, page_size: 200 })
+    allProjects.push(...data.items)
+    if (allProjects.length >= data.total || data.items.length === 0) break
+    nextPage += 1
+  }
+  projects.value = allProjects
 }
 
 function openImportDialog() {
@@ -327,9 +361,14 @@ async function scanCandidates() {
 
 async function handleImport() {
   if (!importProjectId.value || selectedCandidates.value.length === 0) return
+  if (selectedCandidates.value.some(item => !item.model_framework)) {
+    ElMessage.warning('请为选中的实验选择模型框架')
+    return
+  }
   importing.value = true
   try {
-    await importExps(importProjectId.value, selectedCandidates.value.map(item => item.relative_path))
+    await importExps(importProjectId.value, selectedCandidates.value.map(item => item.relative_path),
+      Object.fromEntries(selectedCandidates.value.map(item => [item.relative_path, item.model_framework])))
     ElMessage.success(`已导入 ${selectedCandidates.value.length} 条实验`)
     importVisible.value = false
     await fetchList()
@@ -340,7 +379,7 @@ async function handleImport() {
 
 function openApproveDialog(exp: ExpItem) {
   approvingExp.value = exp
-  approveForm.version = ''
+  approveForm.version = exp.version || ''
   approveForm.description = ''
   approveVisible.value = true
 }

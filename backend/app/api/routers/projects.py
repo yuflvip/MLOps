@@ -26,7 +26,7 @@ router = APIRouter(prefix="/projects", tags=["projects"])
     "",
     response_model=ResponseEnvelope[ProjectListData],
     summary="List Projects",
-    description="返回项目列表，支持分页和按 project/name 查询。",
+    description="返回项目列表，支持分页和按 keyword 匹配模型族标识或名称，兼容 project/name 查询。",
 )
 async def list_projects(
     page: int = Query(default=1, ge=1),
@@ -34,6 +34,7 @@ async def list_projects(
     project: Optional[str] = Query(default=None),
     name: Optional[str] = Query(default=None),
     model_type: Optional[str] = Query(default=None),
+    keyword: Optional[str] = Query(default=None),
     service: ProjectService = Depends(get_project_service),
     request_context=Depends(get_request_context),
 ):
@@ -43,6 +44,7 @@ async def list_projects(
         project=project,
         name=name,
         model_type=model_type,
+        keyword=keyword,
     )
     data = ProjectListData(
         items=[ProjectItem.model_validate(item) for item in result["items"]],
@@ -97,6 +99,7 @@ async def create_project(
             epochs=payload.epochs,
             batch=payload.batch,
             imgsz=payload.imgsz,
+            packaging=payload.packaging.model_dump() if "packaging" in payload.model_fields_set else None,
         )
     except DomainError as exc:
         raise_api_error_for_domain_error(exc)
@@ -131,6 +134,7 @@ async def update_project(
             epochs=payload.epochs,
             batch=payload.batch,
             imgsz=payload.imgsz,
+            packaging=payload.packaging.model_dump() if "packaging" in payload.model_fields_set else None,
         )
     except DomainError as exc:
         raise_api_error_for_domain_error(exc)

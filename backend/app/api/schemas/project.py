@@ -2,6 +2,8 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
+from app.domain.common.packaging import ProjectPackagingConfig
+
 
 class ProjectItem(BaseModel):
     id: int
@@ -11,6 +13,7 @@ class ProjectItem(BaseModel):
     model_architecture: Optional[str] = None
     description: Optional[str] = None
     exp_root_path: Optional[str] = None
+    packaging: ProjectPackagingConfig = Field(default_factory=ProjectPackagingConfig)
     dataset_ids: List[int]
     epochs: Optional[int] = None
     batch: Optional[int] = None
@@ -33,6 +36,7 @@ class ProjectCreateRequest(BaseModel):
     model_architecture: str
     description: Optional[str] = None
     exp_root_path: str
+    packaging: ProjectPackagingConfig = Field(default_factory=ProjectPackagingConfig)
     dataset_ids: List[int]
     epochs: Optional[int] = None
     batch: Optional[int] = None

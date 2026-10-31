@@ -60,3 +60,6 @@ model_conversion:
 quantization_dataset:
   storage_root: "./data/quantization-datasets"
   max_image_size_mb: 100
+
+model_packaging:
+  deploy_dir: "/opt/AII/YoloModel"

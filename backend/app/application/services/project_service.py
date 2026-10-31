@@ -1,5 +1,7 @@
 import json
 from pathlib import Path
+from pydantic import ValidationError
+from app.domain.common.packaging import ProjectPackagingConfig
 from typing import Any, Dict, List, Optional
 
 from app.domain.common.exceptions import (
@@ -19,6 +21,14 @@ MODEL_ARCHITECTURES_BY_TYPE = {
 }
 
 
+def _project_packaging(packaging, project_key):
+    values = dict(packaging or {})
+    values.pop("package_key", None)
+    values["cfg_filename"] = project_key + ".cfg"
+    values["names_filename"] = project_key + ".names"
+    return ProjectPackagingConfig.model_validate(values).model_dump()
+
+
 def _serialize_project(project: ProjectModel) -> Dict[str, Any]:
     return {
         "id": project.id,
@@ -28,6 +38,7 @@ def _serialize_project(project: ProjectModel) -> Dict[str, Any]:
         "model_architecture": project.model_architecture,
         "description": project.description,
         "exp_root_path": project.exp_root_path,
+        "packaging": _project_packaging(json.loads(project.packaging_json or "{}"), project.project),
         "dataset_ids": json.loads(project.dataset_ids_json),
         "epochs": project.epochs,
         "batch": project.batch,
@@ -55,8 +66,10 @@ class ProjectService:
         project: Optional[str] = None,
         name: Optional[str] = None,
         model_type: Optional[str] = None,
+        keyword: Optional[str] = None,
     ) -> Dict[str, Any]:
         items, total = self._project_repository.list_paginated(
+            keyword=keyword.strip() if isinstance(keyword, str) and keyword.strip() else None,
             page=page,
             page_size=page_size,
             project=project.strip() if isinstance(project, str) and project.strip() else None,
@@ -93,6 +106,7 @@ class ProjectService:
         epochs: Optional[int],
         batch: Optional[int],
         imgsz: Optional[int],
+        packaging: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         normalized = self._validate_payload(
             project=project,
@@ -106,9 +120,11 @@ class ProjectService:
             batch=batch,
             imgsz=imgsz,
         )
+        packaging_json = self._validate_packaging(packaging, normalized["project"])
         self._assert_unique_project(normalized["project"])
         saved = self._project_repository.add(
             ProjectModel(
+                packaging_json=packaging_json,
                 project=normalized["project"],
                 name=normalized["name"],
                 model_type=normalized["model_type"],
@@ -138,6 +154,7 @@ class ProjectService:
         epochs: Optional[int],
         batch: Optional[int],
         imgsz: Optional[int],
+        packaging: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         existing = self._project_repository.get_by_id(project_id)
         if existing is None:
@@ -156,6 +173,10 @@ class ProjectService:
             imgsz=imgsz,
         )
         self._assert_unique_project(normalized["project"], exclude_id=project_id)
+        existing.packaging_json = self._validate_packaging(
+            packaging if packaging is not None else json.loads(existing.packaging_json or "{}"),
+            normalized["project"],
+        )
         existing.project = normalized["project"]
         existing.name = normalized["name"]
         existing.model_type = normalized["model_type"]
@@ -169,6 +190,13 @@ class ProjectService:
         saved = self._project_repository.save(existing)
         self._project_repository.commit()
         return _serialize_project(saved)
+
+    def _validate_packaging(self, packaging: Optional[Dict[str, Any]], project_key: str) -> str:
+        try:
+            config = ProjectPackagingConfig.model_validate(_project_packaging(packaging, project_key))
+        except ValidationError as exc:
+            raise ProjectValidationError(str(exc)) from exc
+        return config.model_dump_json()
 
     def delete_project(self, project_id: int) -> bool:
         existing = self._project_repository.get_by_id(project_id)

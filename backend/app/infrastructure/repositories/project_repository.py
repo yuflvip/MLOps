@@ -1,6 +1,6 @@
 from typing import List, Optional, Tuple
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.infrastructure.db.models import ProjectModel
@@ -60,9 +60,15 @@ class ProjectRepository:
         project: Optional[str] = None,
         name: Optional[str] = None,
         model_type: Optional[str] = None,
+        keyword: Optional[str] = None,
     ) -> Tuple[List[ProjectModel], int]:
         stmt = select(ProjectModel)
         count_stmt = select(func.count()).select_from(ProjectModel)
+        if keyword:
+            condition = or_(ProjectModel.project.icontains(keyword, autoescape=True),
+                            ProjectModel.name.icontains(keyword, autoescape=True))
+            stmt = stmt.where(condition)
+            count_stmt = count_stmt.where(condition)
         if project:
             stmt = stmt.where(ProjectModel.project.ilike(f"%{project}%"))
             count_stmt = count_stmt.where(ProjectModel.project.ilike(f"%{project}%"))

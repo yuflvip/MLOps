@@ -1,5 +1,5 @@
 import csv
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import hashlib
 from functools import lru_cache
 import json
@@ -16,6 +16,7 @@ from app.domain.common.exceptions import (
     ExpValidationError,
     ProjectNotFoundError,
 )
+from app.domain.common.experiment_metadata import read_experiment_metadata, MODEL_FRAMEWORKS
 from app.infrastructure.db.models import ExpModel
 from app.infrastructure.repositories import ExpRepository, ProjectRepository
 
@@ -52,6 +53,8 @@ def _serialize_exp(exp: ExpModel) -> Dict[str, Any]:
         "relative_path": exp.relative_path,
         "resolved_path": exp.resolved_path,
         "review_status": exp.review_status,
+        "model_framework": getattr(exp, "model_framework", None),
+        "model_size": getattr(exp, "model_size", None),
         "version": exp.version,
         "description": exp.description,
         "review_comment": exp.review_comment,
@@ -254,6 +257,7 @@ class ExpService:
                     "name": child.name,
                     "relative_path": relative_path,
                     "modified_at": modified_at.isoformat(),
+                    **read_experiment_metadata(resolved),
                     "already_imported": self._exp_repository.get_by_project_path(
                         project.id, relative_path
                     ) is not None,
@@ -261,10 +265,14 @@ class ExpService:
             )
         return {"project_id": project.id, "exp_root_path": str(root), "items": items}
 
-    def import_exps(self, project_id: int, relative_paths: List[str]) -> List[Dict[str, Any]]:
+    def import_exps(self, project_id: int, relative_paths: List[str], *, model_frameworks: Optional[Dict[str, Optional[str]]] = None) -> List[Dict[str, Any]]:
         project, root = self._get_project_root(project_id)
         if not isinstance(relative_paths, list) or not relative_paths:
             raise ExpValidationError("Exp relative_paths must be a non-empty list")
+        model_frameworks = model_frameworks or {}
+        for path, framework in model_frameworks.items():
+            if path not in relative_paths or (framework is not None and framework not in MODEL_FRAMEWORKS):
+                raise ExpValidationError("实验模型框架不在支持列表中或实验路径无效")
         normalized_paths = []
         for raw_path in relative_paths:
             relative_path = raw_path.strip() if isinstance(raw_path, str) else ""
@@ -280,18 +288,26 @@ class ExpService:
             normalized_paths.append(relative_path)
 
         try:
-            saved = [
-                self._exp_repository.add(
+            saved = []
+            for relative_path in normalized_paths:
+                exp_root = (root / relative_path).resolve()
+                metadata = read_experiment_metadata(exp_root)
+                framework = model_frameworks.get(relative_path) or metadata["model_framework"]
+                version = self._default_import_version(exp_root)
+                if version and self._exp_repository.get_by_project_version(project.id, version):
+                    raise ExpConflictError("同一模型族已存在结束训练时间对应的版本 %s，请检查实验结束时间" % version)
+                saved.append(self._exp_repository.add(
                     ExpModel(
                         project_id=project.id,
                         name=relative_path,
                         relative_path=relative_path,
-                        resolved_path=str((root / relative_path).resolve()),
+                        resolved_path=str(exp_root),
                         review_status=PENDING_REVIEW,
+                        version=version,
+                        model_framework=framework,
+                        model_size=metadata["model_size"],
                     )
-                )
-                for relative_path in normalized_paths
-            ]
+                ))
             self._exp_repository.commit()
         except Exception:
             self._exp_repository.rollback()
@@ -308,7 +324,7 @@ class ExpService:
         if not normalized_version:
             raise ExpValidationError("Exp version must not be empty")
         existing = self._exp_repository.get_by_project_version(exp.project_id, normalized_version)
-        if existing is not None:
+        if existing is not None and existing.id != exp.id:
             raise ExpConflictError("Exp version '%s' already exists in this project" % normalized_version)
         exp.version = normalized_version
         exp.description = description.strip() if isinstance(description, str) and description.strip() else None
@@ -328,7 +344,6 @@ class ExpService:
             raise ExpValidationError("Exp review_comment must not be empty")
         exp.review_status = REJECTED
         exp.review_comment = normalized_comment
-        exp.version = None
         exp.reviewed_at = datetime.now(timezone.utc)
         saved = self._exp_repository.add(exp)
         self._exp_repository.commit()
@@ -361,6 +376,13 @@ class ExpService:
         if not root.exists() or not root.is_dir():
             raise ExpValidationError("Exp directory does not exist or is not a directory")
         return root
+
+    def _default_import_version(self, root: Path) -> Optional[str]:
+        results_path = root / "results.png"
+        if not results_path.is_file():
+            return None
+        finished_at = self._file_timestamp(results_path)
+        return finished_at.astimezone(timezone(timedelta(hours=8))).strftime("%Y%m%d%H%M%S")
 
     def _file_timestamp(self, path: Path) -> datetime:
         stat = path.stat()

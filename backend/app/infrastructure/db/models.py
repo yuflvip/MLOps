@@ -201,6 +201,7 @@ class ProjectModel(Base):
     )
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     exp_root_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    packaging_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     dataset_ids_json: Mapped[str] = mapped_column(Text, nullable=False)
     epochs: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     batch: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
@@ -235,6 +236,8 @@ class ExpModel(Base):
     review_status: Mapped[str] = mapped_column(
         String(32), nullable=False, default="pending_review", index=True
     )
+    model_framework: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    model_size: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     version: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     review_comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

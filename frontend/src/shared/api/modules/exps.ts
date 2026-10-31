@@ -1,9 +1,16 @@
 import { apiDelete, apiGet, apiPost, http } from '../client'
 import type { PaginatedData } from '@/shared/types'
 
+export const modelFrameworkOptions = [
+  ...Array.from({ length: 7 }, (_, i) => `hgnetv2b${i}`),
+  ...['yolo26', 'yolov8'].flatMap(prefix => ['n', 's', 'm', 'x', 'l'].map(size => prefix + size)),
+]
+
 export type ExpReviewStatus = 'pending_review' | 'approved' | 'rejected'
 
 export interface ExpItem {
+  model_framework: string | null
+  model_size: string | null
   id: number
   project_id: number
   name: string
@@ -31,6 +38,8 @@ export interface ExpListParams {
 }
 
 export interface ExpCandidate {
+  model_framework: string | null
+  model_size: string | null
   name: string
   relative_path: string
   modified_at: string
@@ -243,10 +252,10 @@ export function getModelConversions(expId: number) {
   )
 }
 
-export function importExps(projectId: number, relativePaths: string[]) {
-  return apiPost<ExpItem[], { relative_paths: string[] }>(
+export function importExps(projectId: number, relativePaths: string[], modelFrameworks: Record<string, string | null> = {}) {
+  return apiPost<ExpItem[], { relative_paths: string[]; model_frameworks: Record<string, string | null> }>(
     `/mlops/projects/${projectId}/exps/import`,
-    { relative_paths: relativePaths },
+    { relative_paths: relativePaths, model_frameworks: modelFrameworks },
   )
 }
 

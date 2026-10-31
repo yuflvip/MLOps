@@ -1,4 +1,4 @@
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -10,6 +10,8 @@ class ExpItem(BaseModel):
     relative_path: str
     resolved_path: str
     review_status: str
+    model_framework: Optional[str] = None
+    model_size: Optional[str] = None
     version: Optional[str] = None
     description: Optional[str] = None
     review_comment: Optional[str] = None
@@ -30,6 +32,8 @@ class ExpListData(BaseModel):
 
 
 class ExpCandidate(BaseModel):
+    model_framework: Optional[str] = None
+    model_size: Optional[str] = None
     name: str
     relative_path: str
     modified_at: str
@@ -44,6 +48,7 @@ class ExpCandidateListData(BaseModel):
 
 class ExpImportRequest(BaseModel):
     relative_paths: List[str]
+    model_frameworks: Dict[str, Optional[str]] = Field(default_factory=dict)
 
 
 class ExpApproveRequest(BaseModel):

@@ -4,7 +4,7 @@
     @update:model-value="$emit('update:modelValue', $event)"
     :title="isEdit ? '编辑模型族' : '新建模型族'"
     direction="rtl"
-    size="520px"
+    size="min(760px, 100vw)"
     :close-on-click-modal="false"
   >
     <el-form
@@ -14,6 +14,7 @@
       label-position="top"
       @submit.prevent="handleSubmit"
     >
+      <div class="two-column-grid">
       <el-form-item label="模型族标识" prop="project">
         <el-input v-model="form.project" placeholder="输入唯一模型族标识" />
       </el-form-item>
@@ -22,6 +23,9 @@
         <el-input v-model="form.name" placeholder="输入模型族名称" />
       </el-form-item>
 
+      </div>
+
+      <div class="two-column-grid">
       <el-form-item label="模型类型" prop="model_type">
         <el-select v-model="form.model_type" placeholder="请选择模型类型" style="width: 100%">
           <el-option label="分类器" value="classification" />
@@ -44,6 +48,8 @@
           />
         </el-select>
       </el-form-item>
+
+      </div>
 
       <el-form-item label="实验根路径" prop="exp_root_path">
         <el-input
@@ -81,6 +87,10 @@
         </el-form-item>
       </div>
 
+      <ProjectPackagingEditor v-model="form.packaging" :project-key="form.project" section="links" />
+
+      <ProjectPackagingEditor v-model="form.packaging" :project-key="form.project" section="files" />
+
       <el-form-item label="描述 / 备注">
         <el-input
           v-model="form.description"
@@ -110,6 +120,8 @@ import {
   type ProjectFormPayload,
   type ProjectItem,
 } from '@/shared/api/modules/projects'
+import ProjectPackagingEditor from './ProjectPackagingEditor.vue'
+import { emptyPackaging } from '@/shared/api/modules/projects'
 import type { DatasetItem } from '@/shared/api/modules/datasets'
 
 const modelValue = defineModel<boolean>({ required: true })
@@ -135,6 +147,7 @@ const architectureOptions = computed(() => {
 })
 
 const form = reactive({
+  packaging: emptyPackaging(),
   project: '',
   name: '',
   model_type: '',
@@ -172,6 +185,7 @@ watch(
   () => [modelValue.value, props.projectItem] as const,
   ([visible, projectItem]) => {
     if (!visible) return
+    form.packaging = { ...emptyPackaging(), ...projectItem?.packaging, model_links: { ...projectItem?.packaging?.model_links } }
     form.project = projectItem?.project || ''
     form.name = projectItem?.name || ''
     form.model_type = projectItem?.model_type || ''
@@ -197,6 +211,7 @@ watch(
 
 function toPayload(): ProjectFormPayload {
   return {
+    packaging: JSON.parse(JSON.stringify(form.packaging)),
     project: form.project.trim(),
     name: form.name.trim(),
     model_type: form.model_type,
@@ -240,6 +255,12 @@ async function handleSubmit() {
   margin-top: 24px;
   padding-top: 16px;
   border-top: 1px solid var(--line);
+}
+
+.two-column-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .param-grid {
