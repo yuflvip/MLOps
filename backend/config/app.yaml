@@ -63,3 +63,15 @@ quantization_dataset:
 
 model_packaging:
   deploy_dir: "/opt/AII/YoloModel"
+  storage_root: "./data/weight-packages"
+  ftp:
+    enabled: false
+    host: "192.168.1.149"
+    port: 21
+    username: ""
+    password: ""
+    password_env: "MLOPS_PACKAGING_FTP_PASSWORD"
+    remote_dir: "/weights"
+    tls: false
+    passive: true
+    timeout_seconds: 60

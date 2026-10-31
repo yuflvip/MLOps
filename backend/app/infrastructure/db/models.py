@@ -297,3 +297,33 @@ class RuntimeEnvironmentModel(Base):
         default=utcnow,
         onupdate=utcnow,
     )
+
+
+class WeightPackageModel(Base):
+    __tablename__ = "weight_packages"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    package_name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    project_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    exp_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    project_key: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    exp_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    platform: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    runtime: Mapped[str] = mapped_column(String(32), nullable=False)
+    model_framework: Mapped[str] = mapped_column(String(32), nullable=False)
+    model_size: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    model_type: Mapped[Optional[str]] = mapped_column(String(32), nullable=True, index=True)
+    training_finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    training_date: Mapped[str] = mapped_column(String(8), nullable=False)
+    source_file: Mapped[str] = mapped_column(Text, nullable=False)
+    local_path: Mapped[str] = mapped_column(Text, nullable=False)
+    unpacked_path: Mapped[str] = mapped_column(Text, nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    snapshot_json: Mapped[str] = mapped_column(Text, nullable=False)
+    ftp_uploaded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    ftp_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ftp_uploaded_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    upload_status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
+    upload_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)

@@ -1,6 +1,12 @@
 from pathlib import Path
 
+import pytest
+
 from app.application.services import QuantizationDatasetService
+from app.domain.common.exceptions import (
+    QuantizationDatasetConflictError,
+    QuantizationDatasetValidationError,
+)
 from app.infrastructure.db import Base, build_session_factory
 from app.infrastructure.repositories import QuantizationDatasetRepository
 
@@ -20,7 +26,13 @@ def _build_service(tmp_path: Path):
 def test_upload_and_delete_images_rewrites_ref_img_list(tmp_path: Path) -> None:
     service, session = _build_service(tmp_path)
     try:
-        dataset = service.create_dataset(name="3403 calibration", description=None)
+        dataset = service.create_dataset(
+            name="3403 calibration",
+            directory_name="hisi3403_calibration",
+            description=None,
+        )
+
+        assert Path(dataset["storage_path"]).name == "hisi3403_calibration"
 
         first = service.upload_image(
             dataset["id"], filename="sample.jpg", content=b"first-image"
@@ -52,11 +64,55 @@ def test_upload_and_delete_images_rewrites_ref_img_list(tmp_path: Path) -> None:
 def test_delete_dataset_removes_managed_directory(tmp_path: Path) -> None:
     service, session = _build_service(tmp_path)
     try:
-        dataset = service.create_dataset(name="temporary", description=None)
+        dataset = service.create_dataset(
+            name="temporary", directory_name="temporary_dataset", description=None
+        )
         storage_path = Path(dataset["storage_path"])
         assert storage_path.is_dir()
 
         assert service.delete_dataset(dataset["id"]) is True
         assert not storage_path.exists()
+    finally:
+        session.close()
+
+
+def test_create_dataset_rejects_invalid_or_duplicate_directory_name(
+    tmp_path: Path,
+) -> None:
+    service, session = _build_service(tmp_path)
+    try:
+        with pytest.raises(QuantizationDatasetValidationError, match="目录名称"):
+            service.create_dataset(
+                name="invalid", directory_name="../outside", description=None
+            )
+
+        service.create_dataset(
+            name="first", directory_name="readable_dataset", description=None
+        )
+        with pytest.raises(QuantizationDatasetConflictError, match="目录"):
+            service.create_dataset(
+                name="second", directory_name="readable_dataset", description=None
+            )
+    finally:
+        session.close()
+
+
+def test_regenerate_image_list_scans_current_images(tmp_path: Path) -> None:
+    service, session = _build_service(tmp_path)
+    try:
+        dataset = service.create_dataset(
+            name="regenerate", directory_name="regenerate_dataset", description=None
+        )
+        storage_path = Path(dataset["storage_path"])
+        image_path = storage_path / "images" / "manual.jpg"
+        image_path.write_bytes(b"manual-image")
+
+        updated = service.regenerate_image_list(dataset["id"])
+
+        assert updated["image_count"] == 1
+        assert updated["size_bytes"] == len(b"manual-image")
+        assert (storage_path / "ref_img_list.txt").read_text(
+            encoding="utf-8"
+        ).splitlines() == [str(image_path)]
     finally:
         session.close()

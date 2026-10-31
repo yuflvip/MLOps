@@ -66,6 +66,7 @@ from app.infrastructure.repositories import (
 
 
 def install_routers(app: FastAPI, container: ApplicationContainer) -> None:
+    from app.api.routers.weight_packages import router as weight_package_router
     from app.api.routers.clearml import router as clearml_router
     from app.api.routers.conversion import router as conversion_router
     from app.api.routers.datasets import router as dataset_router
@@ -80,6 +81,7 @@ def install_routers(app: FastAPI, container: ApplicationContainer) -> None:
     from app.api.routers.training import router as training_router
 
     api_router = APIRouter()
+    api_router.include_router(weight_package_router)
     api_router.include_router(dataset_router)
     api_router.include_router(exp_router)
     api_router.include_router(model_conversion_router)

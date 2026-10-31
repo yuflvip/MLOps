@@ -57,6 +57,7 @@ const appStore = useAppStore()
 
 const navItems = [
   { path: '/model-registry', label: '模型仓库', icon: Box },
+  { path: '/weight-packages', label: '权重包管理', icon: Box },
   { path: '/projects', label: '模型族管理', icon: Briefcase },
   { path: '/datasets', label: '数据集管理', icon: FolderOpened },
   { path: '/quantization-datasets', label: '量化数据集', icon: FolderOpened },

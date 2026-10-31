@@ -45,7 +45,7 @@
         <template #default="{ row }">{{ row.model_architecture || '-' }}</template>
       </el-table-column>
       <el-table-column label="模型软链接主名称" min-width="240" show-overflow-tooltip>
-        <template #default="{ row }">{{ modelLinkBase(row) }}</template>
+        <template #default="{ row }">{{ modelLinkBase(row as ProjectItem) }}</template>
       </el-table-column>
       <el-table-column label="绑定数据集" min-width="260">
         <template #default="{ row }">

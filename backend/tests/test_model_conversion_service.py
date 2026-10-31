@@ -69,6 +69,11 @@ def build_service(tmp_path: Path, architecture: str = "HGNetV2"):
                 working_dir="/model",
                 script_path="/model/tools/export.py",
             ),
+            "yolo_to_onnx": ModelConverterRuntimeSettings(
+                enabled=True,
+                python_path="/env/bin/yolo",
+                working_dir="/model",
+            ),
             "onnx_to_hisi3403": ModelConverterRuntimeSettings(
                 enabled=True,
                 python_path="/usr/bin/bash",
@@ -132,6 +137,51 @@ def test_create_conversion_rejects_non_hgnet_architecture(tmp_path: Path):
         service.create_conversion(
             exp.id,
             converter_code="hgnet_to_onnx",
+            source_file="best.pth",
+            output_file="best.onnx",
+            params={},
+        )
+
+    assert scheduler.submitted == []
+    session.close()
+
+
+def test_create_yolo_onnx_conversion_uses_yolo_defaults(tmp_path: Path):
+    session, service, scheduler, exp, exp_root = build_service(
+        tmp_path, architecture="YOLOv8"
+    )
+    (exp_root / "best.pt").write_bytes(b"checkpoint")
+
+    result = service.create_conversion(
+        exp.id,
+        converter_code="yolo_to_onnx",
+        source_file="best.pt",
+        output_file="best.onnx",
+        params={},
+    )
+
+    assert result["status"] == "queued"
+    assert result["source_format"] == "pt"
+    assert result["params"] == {
+        "end2end": False,
+        "imgsz": "640",
+        "opset": None,
+        "overwrite": False,
+    }
+    assert scheduler.submitted == [result["id"]]
+    session.close()
+
+
+def test_create_yolo_conversion_rejects_pth_file(tmp_path: Path):
+    session, service, scheduler, exp, exp_root = build_service(
+        tmp_path, architecture="YOLOv26"
+    )
+    (exp_root / "best.pth").write_bytes(b"checkpoint")
+
+    with pytest.raises(ExpValidationError, match="Source model must be one of: .pt"):
+        service.create_conversion(
+            exp.id,
+            converter_code="yolo_to_onnx",
             source_file="best.pth",
             output_file="best.onnx",
             params={},
@@ -222,8 +272,102 @@ def test_create_hisi3403_conversion_keeps_all_parameters(tmp_path: Path):
     assert result["params"]["quantization_dataset_name"] == "3403量化集"
     assert result["params"]["image_list_path"] == str(image_list)
     assert result["params"]["input_shape"] == "images:1,3,640,640"
+    assert result["params"]["weight_quant_per_channel"] == 1
+    assert result["params"]["matmul_per_channel_enable"] == 1
+    assert result["params"]["all_batch_quant_together_enable"] == 1
+    assert result["params"]["softmax_optimize_enable"] == 1
     assert result["params"]["dry_run"] is True
     assert scheduler.submitted == [result["id"]]
+    session.close()
+
+
+def test_yolo_scheduler_runs_direct_export_and_moves_output(tmp_path: Path):
+    session_factory = build_session_factory("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(session_factory.kw["bind"])
+    session = session_factory()
+    project = ProjectModel(
+        project="yolo-export",
+        name="YOLO Export",
+        model_type="detection",
+        model_architecture="YOLOv8",
+        dataset_ids_json="[]",
+    )
+    session.add(project)
+    session.flush()
+    exp_root = tmp_path / "exp"
+    exp_root.mkdir()
+    (exp_root / "best.pt").write_bytes(b"checkpoint")
+    exp = ExpModel(
+        project_id=project.id,
+        name="exp",
+        relative_path="exp",
+        resolved_path=str(exp_root),
+        review_status="pending_review",
+    )
+    session.add(exp)
+    session.flush()
+    conversion = ModelConversionModel(
+        exp_id=exp.id,
+        converter_code="yolo_to_onnx",
+        source_file="best.pt",
+        source_format="pt",
+        target_platform="onnx",
+        target_format="onnx",
+        output_file="exports/model.onnx",
+        status="queued",
+        params_json=json.dumps(
+            {
+                "imgsz": "640",
+                "end2end": False,
+                "opset": None,
+                "overwrite": False,
+            }
+        ),
+        result_files_json="[]",
+    )
+    session.add(conversion)
+    session.commit()
+    conversion_id = conversion.id
+    session.close()
+
+    fake_yolo = tmp_path / "yolo"
+    fake_yolo.write_text(
+        "#!/usr/bin/env python3\n"
+        "import pathlib, sys\n"
+        "assert sys.argv[1] == 'export'\n"
+        "args = dict(value.split('=', 1) for value in sys.argv[2:])\n"
+        "assert args['format'] == 'onnx'\n"
+        "assert args['imgsz'] == '640'\n"
+        "assert args['end2end'] == 'False'\n"
+        "assert 'opset' not in args\n"
+        "pathlib.Path(args['model']).with_suffix('.onnx').write_bytes(b'onnx')\n",
+        encoding="utf-8",
+    )
+    fake_yolo.chmod(0o755)
+    settings = ModelConversionSettings(
+        converters={
+            "yolo_to_onnx": ModelConverterRuntimeSettings(
+                enabled=True,
+                python_path=str(fake_yolo),
+                working_dir=str(tmp_path),
+            )
+        }
+    )
+    scheduler = LocalModelConversionScheduler(
+        session_factory=session_factory,
+        settings=settings,
+        log_dir=tmp_path / "logs",
+    )
+
+    asyncio.run(scheduler._run(conversion_id))
+
+    session = session_factory()
+    saved = session.get(ModelConversionModel, conversion_id)
+    assert saved is not None
+    assert saved.status == "succeeded"
+    assert json.loads(saved.result_files_json) == ["exports/model.onnx"]
+    assert (exp_root / "exports/model.onnx").read_bytes() == b"onnx"
+    assert not list((exp_root / "exports").glob(".*.conversion-*"))
     session.close()
 
 

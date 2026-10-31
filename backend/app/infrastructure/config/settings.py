@@ -1,6 +1,6 @@
 from typing import Dict
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, SecretStr, field_validator
 
 
 def _normalize_path_prefix(value: object) -> str:
@@ -80,7 +80,22 @@ class QuantizationDatasetSettings(BaseModel):
     max_image_size_mb: int = Field(default=100, ge=1)
 
 
+class PackagingFtpSettings(BaseModel):
+    enabled: bool = False
+    host: str = ""
+    port: int = Field(default=21, ge=1, le=65535)
+    username: str = ""
+    password: SecretStr = SecretStr("")
+    password_env: str = "MLOPS_PACKAGING_FTP_PASSWORD"
+    remote_dir: str = "/weights"
+    tls: bool = False
+    passive: bool = True
+    timeout_seconds: int = Field(default=60, ge=1)
+
+
 class ModelPackagingSettings(BaseModel):
+    storage_root: str = "./data/weight-packages"
+    ftp: PackagingFtpSettings = Field(default_factory=PackagingFtpSettings)
     deploy_dir: str = "/opt/AII/YoloModel"
 
 

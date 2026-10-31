@@ -53,7 +53,7 @@
               <span class="font-mono">{{ formatTime(row.modified_at) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="290" fixed="right">
+          <el-table-column label="操作" width="360" fixed="right">
             <template #default="{ row }">
               <div class="model-actions">
                 <el-button link type="primary" size="small" @click="downloadModel(row as ExpModelArtifactItem)">
@@ -84,6 +84,7 @@
                     </el-dropdown-menu>
                   </template>
                 </el-dropdown>
+                <el-button v-if="['onnx','om','bin','rknn'].includes(row.extension.toLowerCase())" type="primary" size="small" @click="openPackage(row as ExpModelArtifactItem)">打包</el-button>
               </div>
             </template>
           </el-table-column>
@@ -274,6 +275,7 @@
       :model-architecture="project?.model_architecture"
       @submitted="handleConversionSubmitted"
     />
+    <WeightPackageDrawer v-if="exp" v-model="packageVisible" :exp-id="exp.id" :source-file="packageSource" />
     <Hisi3403ExportDrawer
       v-if="exp"
       v-model="hisiExportVisible"
@@ -295,6 +297,7 @@ import { ArrowLeft, Refresh } from '@element-plus/icons-vue'
 import PageHeader from '@/shared/components/PageHeader.vue'
 import EmptyState from '@/shared/components/EmptyState.vue'
 import OnnxExportDrawer from './OnnxExportDrawer.vue'
+import WeightPackageDrawer from '@/modules/weight-package/components/WeightPackageDrawer.vue'
 import Hisi3403ExportDrawer from './Hisi3403ExportDrawer.vue'
 import { getProjectDetail, type ProjectItem } from '@/shared/api/modules/projects'
 import {
@@ -323,6 +326,9 @@ const modelArtifacts = ref<ExpModelArtifactItem[]>([])
 const activeTab = ref('models')
 const conversionRecords = ref<ModelConversionItem[]>([])
 const loading = ref(false)
+const packageVisible = ref(false)
+const packageSource = ref('')
+function openPackage(artifact: ExpModelArtifactItem) { packageSource.value = artifact.relative_path; packageVisible.value = true }
 const exportVisible = ref(false)
 const exportArtifact = ref<ExpArtifactItem>()
 const hisiExportVisible = ref(false)

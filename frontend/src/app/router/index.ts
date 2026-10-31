@@ -8,6 +8,11 @@ const routes: RouteRecordRaw[] = [
     redirect: '/training',
     children: [
       {
+        path: 'weight-packages',
+        name: 'WeightPackages',
+        component: () => import('@/modules/weight-package/components/WeightPackageListPage.vue'),
+      },
+      {
         path: 'training',
         name: 'TrainingList',
         component: () => import('@/modules/training/components/TaskListPage.vue'),
