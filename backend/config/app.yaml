@@ -65,13 +65,13 @@ model_packaging:
   deploy_dir: "/opt/AII/YoloModel"
   storage_root: "./data/weight-packages"
   ftp:
-    enabled: false
+    enabled: true
     host: "192.168.1.149"
     port: 21
-    username: ""
-    password: ""
+    username: "yufl"
+    password: "ASTqY@gj"
     password_env: "MLOPS_PACKAGING_FTP_PASSWORD"
-    remote_dir: "/weights"
+    remote_dir: "/Public/Software/MVP/AIIWeightsV8/2026"
     tls: false
     passive: true
     timeout_seconds: 60

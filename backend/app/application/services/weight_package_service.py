@@ -1,10 +1,11 @@
 import configparser
 from datetime import datetime, timezone, timedelta
+from contextlib import contextmanager
 import ftplib
 import hashlib
 import json
 import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 import posixpath
 import re
 import shlex
@@ -40,11 +41,15 @@ def safe_name(value):
     return value
 
 
-def serialize(item):
+def serialize(item, storage_root=None):
     result = {key: getattr(item, key) for key in ("id", "package_name", "project_id", "exp_id", "project_key", "exp_name", "platform", "runtime", "model_framework", "model_size", "model_type", "training_date", "source_file", "local_path", "unpacked_path", "size_bytes", "sha256", "ftp_uploaded", "ftp_path", "upload_status", "upload_error")}
     for key in ("created_at", "updated_at", "ftp_uploaded_at", "training_finished_at"):
         value = getattr(item, key)
         result[key] = value.replace(tzinfo=timezone.utc).isoformat() if value and value.tzinfo is None else value.isoformat() if value else None
+    if storage_root is not None:
+        for key in ("local_path", "unpacked_path"):
+            path = Path(result[key])
+            result[key] = str(path if path.is_absolute() else Path(storage_root) / path)
     return result
 
 
@@ -59,6 +64,14 @@ class WeightPackageService:
         if not path.is_relative_to(self.root):
             raise ExpValidationError("打包文件路径超出配置存储目录")
         return path
+
+    def _stored_path(self, value):
+        if os.name != "nt" and PureWindowsPath(value).drive:
+            raise ExpValidationError("权重包记录仍是Windows绝对路径，请等待数据库路径迁移完成")
+        path = Path(value)
+        if not path.is_absolute():
+            path = self.root / path
+        return self._within(path)
 
     def _record(self, id):
         record = self.session.get(WeightPackageModel, id)
@@ -182,9 +195,6 @@ class WeightPackageService:
         links = {model_link: model_filename, config.cfg_link: config.cfg_filename, config.names_link: config.names_filename}
         lines = ["#!/bin/sh", "set -eu", "cd " + shlex.quote(self.settings.deploy_dir)]
         for link, filename in links.items():
-            target = bundle + "/" + filename
-            lines += ["test -f " + shlex.quote(target)]
-        for link, filename in links.items():
             lines += ["ln -sfn " + shlex.quote(bundle + "/" + filename) + " " + shlex.quote(link)]
         script = "\n".join(lines) + "\n"
         snapshot = {"project_id": project.id, "exp_id": exp.id, "project_key": family, "exp_name": exp.name,
@@ -259,7 +269,7 @@ class WeightPackageService:
                     for key in ("package_name", "project_id", "exp_id", "project_key", "exp_name", "platform", "runtime", "model_framework", "model_size", "model_type", "training_date", "source_file"):
                         setattr(record, key, snapshot[key])
                     record.training_finished_at = datetime.fromisoformat(snapshot["training_finished_at"])
-                    record.local_path, record.unpacked_path = str(archive), str(unpacked)
+                    record.local_path, record.unpacked_path = archive.relative_to(self.root).as_posix(), unpacked.relative_to(self.root).as_posix()
                     record.size_bytes, record.sha256 = archive_size, digest
                     record.snapshot_json = json.dumps(snapshot, ensure_ascii=False)
                     record.ftp_uploaded = False
@@ -268,7 +278,7 @@ class WeightPackageService:
                     record.created_at = datetime.now(timezone.utc)
                     record.updated_at = record.created_at
                     self.session.flush()
-                    built = serialize(record)
+                    built = serialize(record, self.root)
                     self.session.commit()
                 except Exception:
                     self.session.rollback()
@@ -293,11 +303,11 @@ class WeightPackageService:
         if uploaded is not None: conditions.append(WeightPackageModel.ftp_uploaded == uploaded)
         rows = self.session.scalars(select(WeightPackageModel).where(*conditions).order_by(WeightPackageModel.created_at.desc(), WeightPackageModel.id.desc()).offset((page-1)*page_size).limit(page_size))
         total = self.session.scalar(select(func.count()).select_from(WeightPackageModel).where(*conditions))
-        return {"items": [serialize(row) for row in rows], "total": total, "page": page, "page_size": page_size}
+        return {"items": [serialize(row, self.root) for row in rows], "total": total, "page": page, "page_size": page_size}
 
     def download(self, id):
         record = self._record(id)
-        path = self._within(record.local_path)
+        path = self._stored_path(record.local_path)
         if not path.is_file(): raise ExpNotFoundError("本地压缩包不存在")
         return path, record.package_name
 
@@ -318,9 +328,7 @@ class WeightPackageService:
             remote_path = posixpath.join(settings.remote_dir, record.project_key, record.package_name)
             ftp = ftplib.FTP_TLS() if settings.tls else ftplib.FTP()
             temporary = "." + record.package_name + "." + uuid4().hex + ".part"
-            record.upload_status = "uploading"
-            record.upload_error = None
-            self.session.commit()
+            upload_started = False
             connected = False
             try:
                 ftp.connect(settings.host, settings.port, timeout=settings.timeout_seconds)
@@ -338,6 +346,10 @@ class WeightPackageService:
                 existing = record.package_name in [posixpath.basename(name) for name in ftp.nlst()]
                 if existing and not overwrite:
                     raise ExpConflictError("FTP已存在同名文件，请选择覆盖或取消")
+                record.upload_status = "uploading"
+                record.upload_error = None
+                self.session.commit()
+                upload_started = True
                 with path.open("rb") as handle:
                     ftp.storbinary("STOR " + temporary, handle, blocksize=1024*1024)
                 ftp.voidcmd("TYPE I")
@@ -363,8 +375,12 @@ class WeightPackageService:
                 record.ftp_uploaded_at = datetime.now(timezone.utc)
                 record.upload_status = "succeeded"
                 self.session.commit()
-                return serialize(record)
+                return serialize(record, self.root)
             except Exception as exc:
+                if isinstance(exc, ExpConflictError) and not upload_started:
+                    # A request for overwrite confirmation is not an upload failure.
+                    self.session.rollback()
+                    raise
                 if connected:
                     try: ftp.delete(temporary)
                     except ftplib.all_errors: pass
@@ -379,3 +395,107 @@ class WeightPackageService:
             finally:
                 try: ftp.close()
                 except ftplib.all_errors: pass
+
+
+    @contextmanager
+    def _ftp_connection(self):
+        settings = self.settings.ftp
+        if not settings.enabled or not settings.host or not settings.username:
+            raise ExpValidationError("无法校验FTP文件：请先启用并配置FTP服务器")
+        password = os.environ.get(settings.password_env, "") or settings.password.get_secret_value()
+        if not password:
+            raise ExpValidationError("无法校验FTP文件：FTP密码未配置")
+        ftp = ftplib.FTP_TLS() if settings.tls else ftplib.FTP()
+        try:
+            ftp.connect(settings.host, settings.port, timeout=settings.timeout_seconds)
+            ftp.login(settings.username, password)
+            if settings.tls:
+                ftp.prot_p()
+            ftp.set_pasv(settings.passive)
+            yield ftp
+        except ftplib.all_errors as exc:
+            raise ExpValidationError("无法校验FTP文件是否存在，暂不能删除，请检查FTP连接和权限") from exc
+        finally:
+            try:
+                ftp.close()
+            except ftplib.all_errors:
+                pass
+
+    def _remote_exists(self, ftp, remote_path):
+        path = PurePosixPath(remote_path)
+        if not path.is_absolute() or ".." in path.parts or any(char in remote_path for char in ("\r", "\n", "\\")):
+            raise ExpValidationError("FTP文件路径无效，无法校验删除条件")
+        ftp.cwd("/")
+        def names():
+            try:
+                return {name for name, facts in ftp.mlsd() if facts.get("type") not in {"cdir", "pdir"}}
+            except (AttributeError, ftplib.error_perm) as exc:
+                if isinstance(exc, ftplib.error_perm) and not str(exc).startswith(("500", "502", "504")):
+                    raise
+                return {posixpath.basename(value.rstrip("/")) for value in ftp.nlst()}
+        parts = path.parts[1:]
+        for index, part in enumerate(parts):
+            # A successful listing establishes absence, while access errors do not.
+            if part not in names():
+                return False
+            if index < len(parts) - 1:
+                ftp.cwd(part)
+        return bool(parts)
+
+    def _deletion_token(self, record):
+        value = "%s:%s:%s:%s" % (record.id, record.sha256, record.updated_at, record.package_name)
+        return hashlib.sha256(value.encode()).hexdigest()
+
+    def _check_deletion(self, record):
+        if record.ftp_uploaded:
+            remote_path = record.ftp_path or posixpath.join(self.settings.ftp.remote_dir, record.project_key, record.package_name)
+            with self._ftp_connection() as ftp:
+                if self._remote_exists(ftp, remote_path):
+                    return {"allowed": False, "message": "已上传FTP不能删除", "confirmation_token": None}
+        return {"allowed": True, "message": "确认删除记录、本地压缩包和解包目录？", "confirmation_token": self._deletion_token(record)}
+
+    def deletion_check(self, id):
+        record = self._record(id)
+        with self._lock(record.package_name):
+            self.session.refresh(record)
+            return self._check_deletion(record)
+
+    def delete(self, id, confirmation_token):
+        record = self._record(id)
+        with self._lock(record.package_name):
+            self.session.refresh(record)
+            if confirmation_token != self._deletion_token(record):
+                raise ExpConflictError("权重包已变化，请重新确认删除")
+            check = self._check_deletion(record)
+            if not check["allowed"]:
+                raise ExpValidationError(check["message"])
+            family_path = self.root / safe_name(record.project_key)
+            if family_path.is_symlink() or (self.root / record.local_path).is_symlink() or (self.root / record.unpacked_path).is_symlink():
+                raise ExpValidationError("本地权重包路径是软链接，拒绝删除")
+            family_dir = self._within(family_path)
+            archive = self._stored_path(record.local_path)
+            unpacked = self._stored_path(record.unpacked_path)
+            # Verify exact absolute targets before moving/removing any directory.
+            expected_archive = self._within(family_dir / record.package_name)
+            if archive != expected_archive or unpacked != archive.with_suffix("") or archive.parent != family_dir or family_dir == self.root:
+                raise ExpValidationError("本地权重包路径不符合存储规则，拒绝删除")
+            if archive.exists() and not archive.is_file() or unpacked.exists() and not unpacked.is_dir():
+                raise ExpValidationError("本地权重包文件类型异常，拒绝删除")
+            family_dir.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryDirectory(prefix=".delete-", dir=family_dir) as temporary:
+                quarantine = self._within(Path(temporary))
+                moved = []
+                try:
+                    for path, name in ((archive, "archive.tgz"), (unpacked, "unpacked")):
+                        if path.exists():
+                            target = quarantine / name
+                            path.rename(target)
+                            moved.append((target, path))
+                    self.session.delete(record)
+                    self.session.commit()
+                except Exception:
+                    self.session.rollback()
+                    for staged, original in reversed(moved):
+                        staged.rename(original)
+                    raise
+            return {"deleted": True}

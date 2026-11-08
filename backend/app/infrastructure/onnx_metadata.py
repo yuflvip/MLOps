@@ -65,10 +65,10 @@ def inspect_onnx(path):
                 if entry.get(1) == "location":
                     locations.add(entry.get(2, ""))
 
-    def sparse(value):
+    def sparse(value, initializer=False):
         for field in (1, 2):
             for content in _messages(value, field):
-                tensor(content)
+                tensor(content, initializer=initializer)
 
     def visit(value, depth=0):
         if depth > 64:
@@ -76,7 +76,7 @@ def inspect_onnx(path):
         for field in _messages(value, 5):
             tensor(field, initializer=depth == 0)
         for field in _messages(value, 15):
-            sparse(field)
+            sparse(field, initializer=depth == 0)
         for node in _messages(value, 1):
             for attribute in _messages(node, 5):
                 for number, wire, content in _fields(attribute):
@@ -89,15 +89,25 @@ def inspect_onnx(path):
                     elif number in (22, 23):
                         sparse(content)
     visit(graph)
-    dimensions = []
+    inputs = []
     for value in _messages(graph, 11):
-        name = next(_messages(value, 1), None)
-        if name is not None and bytes(name).decode("utf-8") in initializer_names:
+        name_bytes = next(_messages(value, 1), None)
+        name = bytes(name_bytes).decode("utf-8") if name_bytes is not None else ""
+        if name in initializer_names:
             continue
+        dimensions = []
         for type_proto in _messages(value, 2):
             for tensor_type in _messages(type_proto, 1):
                 for shape in _messages(tensor_type, 2):
                     for dimension in _messages(shape, 1):
-                        dimensions.append(next((v for n, w, v in _fields(dimension) if n == 1 and w == 0), 0))
-        break
-    return {"external_files": sorted(locations), "input_dimensions": dimensions}
+                        item = None
+                        for number, wire, content in _fields(dimension):
+                            if number == 1 and wire == 0:
+                                item = content if content < (1 << 63) else content - (1 << 64)
+                            elif number == 2 and wire == 2:
+                                item = bytes(content).decode("utf-8") or None
+                        dimensions.append(item)
+        inputs.append({"name": name, "dimensions": dimensions})
+    # Retain the original numeric result for existing packaging checks.
+    first_dimensions = [value if isinstance(value, int) and value > 0 else 0 for value in inputs[0]["dimensions"]] if inputs else []
+    return {"external_files": sorted(locations), "input_dimensions": first_dimensions, "inputs": inputs}

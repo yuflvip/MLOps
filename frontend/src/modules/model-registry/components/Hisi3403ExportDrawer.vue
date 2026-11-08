@@ -51,11 +51,13 @@
 
       <div class="form-section-title">转换参数</div>
       <el-form-item label="输入Shape（--input_shape）" prop="input_shape">
-        <el-input
-          v-model="form.input_shape"
-          clearable
-          placeholder="选填；自动解析失败时需填写，例如 images:1,3,640,640"
-        />
+        <div class="shape-field">
+          <el-input v-model="form.input_shape" :disabled="shapeLoading" clearable placeholder="从ONNX读取；可手动修改，例如 input:1,3,224,224" />
+          <p v-if="shapeLoading" class="shape-hint">正在读取所选ONNX的输入名与维度…</p>
+          <p v-if="detectedShape" class="shape-hint">ONNX原始输入：{{ detectedShape }}</p>
+          <el-alert v-if="shapeNotice" :title="shapeNotice" type="warning" :closable="false" show-icon />
+          <p v-else-if="detectedShape" class="shape-hint">已按ONNX实际输入自动填写，可手动修改。</p>
+        </div>
       </el-form-item>
       <el-form-item label="AIPP配置（--insert_op_conf）">
         <el-select v-model="form.insert_op_conf" style="width: 100%">
@@ -154,7 +156,7 @@
 
     <template #footer>
       <el-button @click="visible = false">取消</el-button>
-      <el-button type="primary" :loading="submitting" @click="handleSubmit">
+      <el-button type="primary" :loading="submitting" :disabled="shapeLoading" @click="handleSubmit">
         {{ form.dry_run ? '预览命令' : '开始转换' }}
       </el-button>
     </template>
@@ -183,6 +185,7 @@ import {
 } from 'element-plus'
 import {
   createModelConversion,
+  getOnnxInputMetadata,
   type ExpModelArtifactItem,
 } from '@/shared/api/modules/exps'
 import {
@@ -194,7 +197,6 @@ const props = defineProps<{
   expId: number
   artifact?: ExpModelArtifactItem
   modelArchitecture?: string | null
-  imageSize?: number | null
   expRoot: string
 }>()
 
@@ -203,6 +205,11 @@ const emit = defineEmits<{ (event: 'submitted'): void }>()
 const formRef = ref<FormInstance>()
 const submitting = ref(false)
 const datasetLoading = ref(false)
+const shapeLoading = ref(false)
+const shapeRequiresManual = ref(false)
+const detectedShape = ref('')
+const shapeNotice = ref('')
+let shapeRequestId = 0
 const datasets = ref<QuantizationDatasetItem[]>([])
 const commandPreviewVisible = ref(false)
 const commandPreview = ref('')
@@ -263,12 +270,12 @@ const rules: FormRules<typeof form> = {
   input_shape: [
     {
       validator: (_rule, value: string, callback) => {
-        if (form.conversion_type === 'ascend_nnn' && !value.trim()) {
-          callback(new Error('昇腾 NNN 必须填写输入Shape'))
+        if ((form.conversion_type === 'ascend_nnn' || shapeRequiresManual.value) && !value.trim()) {
+          callback(new Error('请填写具体输入Shape，动态维度需改为正整数'))
           return
         }
-        if (value && !/^[^:,\s]+:\d+,\d+,\d+,\d+$/.test(value.trim())) {
-          callback(new Error('格式应为 input_name:n,c,h,w'))
+        if (value && !/^[^:,;\s]+:[1-9]\d*,[1-9]\d*,[1-9]\d*,[1-9]\d*$/.test(value.trim())) {
+          callback(new Error('格式应为 input_name:n,c,h,w，所有维度须为正整数'))
           return
         }
         callback()
@@ -285,28 +292,52 @@ const rules: FormRules<typeof form> = {
 }
 
 watch(visible, async (value) => {
-  if (!value || !props.artifact) return
+  const requestId = ++shapeRequestId
+  if (!value || !props.artifact) { shapeLoading.value = false; return }
   resetForm()
+  const expId = props.expId
+  const relativePath = props.artifact.relative_path
+  shapeLoading.value = true
   datasetLoading.value = true
+  await Promise.allSettled([
+    loadInputShape(requestId, expId, relativePath),
+    (async () => {
+      try {
+        const data = await getQuantizationDatasetList({ page: 1, page_size: 200 })
+        if (requestId !== shapeRequestId || !visible.value) return
+        datasets.value = data.items
+        if (datasets.value.length === 1 && datasets.value[0].image_count > 0) {
+          form.quantization_dataset_id = datasets.value[0].id
+        }
+      } finally { if (requestId === shapeRequestId) datasetLoading.value = false }
+    })(),
+  ])
+}, { immediate: true })
+
+async function loadInputShape(requestId: number, expId: number, path: string) {
   try {
-    const data = await getQuantizationDatasetList({ page: 1, page_size: 200 })
-    datasets.value = data.items
-    if (datasets.value.length === 1 && datasets.value[0].image_count > 0) {
-      form.quantization_dataset_id = datasets.value[0].id
-    }
-  } finally {
-    datasetLoading.value = false
-  }
-})
+    const data = await getOnnxInputMetadata(expId, path)
+    if (requestId !== shapeRequestId || !visible.value) return
+    detectedShape.value = data.inputs.map(input => `${input.name}:${input.dimensions.map(value => value ?? '?').join(',')}`).join('; ')
+    form.input_shape = data.input_shape || (data.inputs.length === 1 && data.inputs[0]?.dimensions.length === 4 ? data.shape_template : '')
+    shapeRequiresManual.value = !data.input_shape
+    shapeNotice.value = data.warnings.join(' ')
+  } catch {
+    if (requestId !== shapeRequestId || !visible.value) return
+    shapeRequiresManual.value = true
+    shapeNotice.value = '读取ONNX输入失败，请手动填写实际输入名及形状；未使用模型族imgsz推测。'
+  } finally { if (requestId === shapeRequestId) shapeLoading.value = false }
+}
 
 function resetForm() {
   form.conversion_type = 'svp_nnn'
   const modelName = props.artifact?.name.replace(/\.onnx$/i, '.om') || 'model.om'
   form.output_file = `hisi_atc_output_svp_nnn/${modelName}`
   form.quantization_dataset_id = undefined
-  form.input_shape = props.imageSize
-    ? `images:1,3,${props.imageSize},${props.imageSize}`
-    : ''
+  form.input_shape = ''
+  detectedShape.value = ''
+  shapeNotice.value = ''
+  shapeRequiresManual.value = false
   form.insert_op_conf = props.modelArchitecture?.toLowerCase().includes('hgnet')
     ? 'insert_op_hgnet.cfg'
     : 'insert_op.cfg'
@@ -349,7 +380,7 @@ watch(
 )
 
 async function handleSubmit() {
-  if (!props.artifact || !formRef.value) return
+  if (!props.artifact || !formRef.value || shapeLoading.value) return
   await formRef.value.validate()
   if (
     form.conversion_type === 'svp_nnn'
@@ -500,6 +531,8 @@ function buildCommandPreview() {
 </script>
 
 <style scoped>
+.shape-field { width: 100%; }
+.shape-hint { margin: 6px 0; color: var(--el-text-color-secondary); font-size: 12px; overflow-wrap: anywhere; }
 .form-section-title {
   margin: 4px 0 14px;
   padding-left: 9px;

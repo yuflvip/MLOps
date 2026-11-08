@@ -23,6 +23,10 @@ class BuildRequest(PackageRequest):
     preview_token: str = Field(min_length=64, max_length=64)
 
 
+class DeleteRequest(BaseModel):
+    confirmation_token: str = Field(min_length=64, max_length=64)
+
+
 class UploadRequest(BaseModel):
     overwrite: bool = False
 
@@ -76,3 +80,13 @@ def download(id: int, service=Depends(get_service)):
 @router.post("/{id}/upload")
 def upload(id: int, payload: UploadRequest, service=Depends(get_service), context=Depends(get_request_context)):
     return invoke(lambda: service.upload(id, payload.overwrite), context)
+
+
+@router.get("/{id}/delete-check")
+def deletion_check(id: int, service=Depends(get_service), context=Depends(get_request_context)):
+    return invoke(lambda: service.deletion_check(id), context)
+
+
+@router.delete("/{id}")
+def delete_package(id: int, payload: DeleteRequest, service=Depends(get_service), context=Depends(get_request_context)):
+    return invoke(lambda: service.delete(id, payload.confirmation_token), context)

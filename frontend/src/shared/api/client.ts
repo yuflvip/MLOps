@@ -26,7 +26,10 @@ http.interceptors.response.use(
     if (error.response) {
       const body = error.response.data as { message?: string } | undefined
       const msg = body?.message || `请求错误 (${error.response.status})`
-      ElMessage.error(msg)
+      const ftpOverwriteConfirmation = error.response.status === 409
+        && /\/weight-packages\/\d+\/upload$/.test(error.config?.url || '')
+        && msg.includes('FTP已存在同名')
+      if (!ftpOverwriteConfirmation) ElMessage.error(msg)
     } else if (error.code === 'ECONNABORTED') {
       ElMessage.error('请求超时，请稍后重试')
     } else {

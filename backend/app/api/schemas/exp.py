@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -96,3 +96,16 @@ class ExpArtifactPreviewData(BaseModel):
     page_size: int = 100
     has_more: bool = False
     truncated: bool = False
+
+
+class OnnxInputItem(BaseModel):
+    name: str
+    dimensions: List[Union[int, str, None]] = Field(default_factory=list)
+
+
+class OnnxInputMetadata(BaseModel):
+    relative_path: str
+    inputs: List[OnnxInputItem] = Field(default_factory=list)
+    input_shape: Optional[str] = None
+    shape_template: str = ""
+    warnings: List[str] = Field(default_factory=list)

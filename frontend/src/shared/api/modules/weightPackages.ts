@@ -32,3 +32,13 @@ export async function downloadPackage(item: WeightPackage) {
   const link = document.createElement('a'); link.href = url; link.download = item.package_name; link.click()
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
+
+export interface PackageDeleteCheck { allowed: boolean; message: string; confirmation_token: string | null }
+export async function checkPackageDeletion(id: number) {
+  const response = await http.get<ApiEnvelope<PackageDeleteCheck>>(`/mlops/weight-packages/${id}/delete-check`, { timeout: 0 })
+  return response.data.data
+}
+export async function deletePackage(id: number, confirmationToken: string) {
+  const response = await http.delete<ApiEnvelope<{ deleted: boolean }>>(`/mlops/weight-packages/${id}`, { data: { confirmation_token: confirmationToken }, timeout: 0 })
+  return response.data.data
+}

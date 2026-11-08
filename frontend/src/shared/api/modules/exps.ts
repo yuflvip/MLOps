@@ -275,3 +275,15 @@ export function rejectExp(id: number, reviewComment: string) {
 export function deleteExp(id: number) {
   return apiDelete<boolean>(`/mlops/exps/${id}`)
 }
+
+
+export interface OnnxInputMetadata {
+  relative_path: string
+  inputs: { name: string; dimensions: (number | string | null)[] }[]
+  input_shape: string | null
+  shape_template: string
+  warnings: string[]
+}
+export function getOnnxInputMetadata(id: number, path: string) {
+  return apiGet<OnnxInputMetadata, { path: string }>(`/mlops/exps/${id}/onnx-inputs`, { path })
+}

@@ -11,6 +11,7 @@ from app.api.routers import (
 )
 from app.api.schemas.common import ResponseEnvelope
 from app.api.schemas.exp import (
+    OnnxInputMetadata,
     ExpApproveRequest,
     ExpArtifactListData,
     ExpArtifactPreviewData,
@@ -253,3 +254,13 @@ async def delete_exp(
         data=deleted,
         request_context=request_context,
     )
+
+
+@router.get("/exps/{exp_id}/onnx-inputs", response_model=ResponseEnvelope[OnnxInputMetadata])
+def get_onnx_inputs(exp_id: int, path: str = Query(min_length=1),
+                    service: ExpService = Depends(get_exp_service), request_context=Depends(get_request_context)):
+    try:
+        result = service.get_onnx_inputs(exp_id, path)
+    except DomainError as exc:
+        raise_api_error_for_domain_error(exc)
+    return build_success_response(data=OnnxInputMetadata.model_validate(result), request_context=request_context)

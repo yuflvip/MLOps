@@ -17,6 +17,7 @@ from app.domain.common.exceptions import (
     ProjectNotFoundError,
 )
 from app.domain.common.experiment_metadata import read_experiment_metadata, MODEL_FRAMEWORKS
+from app.infrastructure.onnx_metadata import inspect_onnx
 from app.infrastructure.db.models import ExpModel
 from app.infrastructure.repositories import ExpRepository, ProjectRepository
 
@@ -238,6 +239,34 @@ class ExpService:
         if not resolved.is_relative_to(root) or not resolved.is_file():
             raise ExpValidationError("Artifact file was not found under the exp directory")
         return resolved, resolved.relative_to(root).as_posix()
+
+    def get_onnx_inputs(self, exp_id: int, relative_path: str) -> Dict[str, Any]:
+        path, relative = self.resolve_artifact(exp_id, relative_path)
+        if path.suffix.lower() != ".onnx":
+            raise ExpValidationError("请选择ONNX模型文件")
+        try:
+            inputs = inspect_onnx(path)["inputs"]
+        except (OSError, ValueError, RecursionError) as exc:
+            raise ExpValidationError("ONNX输入信息解析失败，请检查模型文件或手动填写输入Shape") from exc
+        warnings = []
+        shape_template = ""
+        input_shape = None
+        if len(inputs) != 1:
+            warnings.append("模型包含%d个实际输入，当前转换表单仅支持单个四维输入，请核对模型。" % len(inputs))
+        else:
+            item = inputs[0]
+            dimensions = item["dimensions"]
+            shape_template = item["name"] + ":" + ",".join(str(v) if isinstance(v, int) and v > 0 else "?" for v in dimensions)
+            if len(dimensions) != 4:
+                warnings.append("检测到%d维输入，当前转换表单要求四维输入，请手动核对。" % len(dimensions))
+            elif not item["name"] or any(char in item["name"] for char in ":,; \t\r\n"):
+                warnings.append("ONNX输入名无法直接用于转换参数，请手动核对。")
+            elif any(not isinstance(v, int) or v <= 0 for v in dimensions):
+                warnings.append("检测到动态或未确定维度，已标为 ?，请改为具体正整数后提交。")
+            else:
+                input_shape = shape_template
+        return {"relative_path": relative, "inputs": inputs, "input_shape": input_shape,
+                "shape_template": shape_template, "warnings": warnings}
 
     def scan_candidates(self, project_id: int) -> Dict[str, Any]:
         project, root = self._get_project_root(project_id)

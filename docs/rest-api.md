@@ -508,3 +508,10 @@ curl -X POST "http://127.0.0.1:18087/mlops/conversion/onnx" \
 - 本文档按当前一期后端实现编写
 - 如果后续新增 YOLO、评测、ONNX -> 海思等任务类型，建议继续沿用 `params` + `execution_params` 的分组方式
 - 前端实现前，应先对照本文档完成表单字段映射
+
+
+## 读取ONNX实际输入
+
+`GET /mlops/exps/{exp_id}/onnx-inputs?path=best.onnx`
+
+仅允许读取实验目录内的 ONNX 文件。返回 inputs（真实输入名与维度，排除初始化权重）、input_shape、shape_template 和 warnings。单个固定四维输入自动生成 input_shape；动态或未知维度在模板中用 `?` 标识，需要用户改成正整数。多输入或非四维模型给出当前转换表单的限制提示，不静默选取第一个输入。解析失败时允许手动填写，不使用模型族 imgsz 猜测输入名或尺寸。

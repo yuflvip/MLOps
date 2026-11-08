@@ -35,10 +35,11 @@
     <el-table-column label="FTP 状态" width="175"><template #default="{ row }"><el-tag :type="row.upload_status === 'failed' ? 'danger' : row.ftp_uploaded ? 'success' : 'info'">{{ uploadLabel(row as WeightPackage) }}</el-tag></template></el-table-column>
     <el-table-column prop="upload_error" label="上传错误" min-width="200" show-overflow-tooltip />
     <el-table-column prop="local_path" label="本地路径" min-width="260" show-overflow-tooltip />
-    <el-table-column label="操作" width="280" fixed="right"><template #default="{ row }">
+    <el-table-column label="操作" width="340" fixed="right"><template #default="{ row }">
       <el-button link type="primary" @click="repackage(row as WeightPackage)">重新打包</el-button>
       <el-button link type="primary" @click="downloadPackage(row as WeightPackage)">下载</el-button>
-      <el-button link type="primary" :loading="busyId === row.id" :disabled="busyId !== undefined" @click="upload(row as WeightPackage)">上传FTP</el-button>
+      <el-button link type="primary" :loading="busyId === row.id && busyAction === 'upload'" :disabled="busyId !== undefined" @click="upload(row as WeightPackage)">上传FTP</el-button>
+      <el-button link type="danger" :loading="busyId === row.id && busyAction === 'delete'" :disabled="busyId !== undefined" @click="removePackage(row as WeightPackage)">删除</el-button>
     </template></el-table-column>
   </el-table>
   <WeightPackageDrawer v-if="repackItem" v-model="repackVisible" :exp-id="repackItem.exp_id" :source-file="repackItem.source_file" :initial-platform="repackItem.platform as PackagePlatform" :initial-runtime="repackItem.runtime" :initial-package-name="repackItem.package_name" @saved="fetchList" />
@@ -52,7 +53,7 @@ import PageHeader from '@/shared/components/PageHeader.vue'
 import WeightPackageDrawer from './WeightPackageDrawer.vue'
 import { getProjectList, type ProjectItem } from '@/shared/api/modules/projects'
 import { formatTime, formatBytes } from '@/shared/utils/format'
-import { packagePlatforms, listPackages, uploadPackage, downloadPackage, type WeightPackage, type PackagePlatform } from '@/shared/api/modules/weightPackages'
+import { packagePlatforms, listPackages, uploadPackage, downloadPackage, checkPackageDeletion, deletePackage, type WeightPackage, type PackagePlatform } from '@/shared/api/modules/weightPackages'
 const items = ref<WeightPackage[]>([])
 const keyword = ref(''); const platform = ref(''); const uploadStatus = ref('')
 const modelType = ref(''); const projectId = ref<number>()
@@ -76,6 +77,7 @@ async function loadProjects() {
 function repackage(item: WeightPackage) { repackItem.value = item; repackVisible.value = true }
 const page = ref(1); const pageSize = ref(20); const total = ref(0)
 const loading = ref(false); const busyId = ref<number>()
+const busyAction = ref<'upload' | 'delete'>()
 let requestId = 0
 async function fetchList() {
   const current = ++requestId; loading.value = true
@@ -92,15 +94,42 @@ function uploadLabel(item: WeightPackage) {
   return item.ftp_uploaded ? '已上传' : '未上传'
 }
 async function upload(item: WeightPackage) {
-  busyId.value = item.id
+  const overwrite = item.ftp_uploaded
   try {
-    try { await uploadPackage(item.id, false) } catch (error) {
+    await ElMessageBox.confirm(
+      overwrite ? `该包已上传FTP，是否覆盖远端文件？\n${item.package_name}` : `确认上传该权重包到FTP？\n${item.package_name}`,
+      overwrite ? '覆盖确认' : '上传确认',
+      { confirmButtonText: overwrite ? '覆盖' : '上传', cancelButtonText: '取消', type: overwrite ? 'warning' : 'info' },
+    )
+  } catch { return }
+  busyId.value = item.id
+  busyAction.value = 'upload'
+  try {
+    try { await uploadPackage(item.id, overwrite) } catch (error) {
       if (!axios.isAxiosError(error) || error.response?.status !== 409 || !String(error.response.data?.message).includes('FTP已存在同名')) throw error
       try { await ElMessageBox.confirm('FTP已存在同名文件，是否覆盖？', '上传确认', { confirmButtonText: '覆盖', cancelButtonText: '取消', type: 'warning' }) } catch { return }
       await uploadPackage(item.id, true)
     }
     ElMessage.success('FTP上传完成')
-  } catch { /* API interceptor displays the failure. */ } finally { busyId.value = undefined; await fetchList() }
+  } catch { /* API interceptor displays real failures, not overwrite confirmation. */ } finally { busyId.value = undefined; busyAction.value = undefined; await fetchList() }
+}
+async function removePackage(item: WeightPackage) {
+  busyId.value = item.id
+  busyAction.value = 'delete'
+  try {
+    const check = await checkPackageDeletion(item.id)
+    if (!check.allowed || !check.confirmation_token) {
+      ElMessage.warning(check.message)
+      return
+    }
+    try {
+      await ElMessageBox.confirm(`确认删除 ${item.package_name}？将删除记录、本地tgz文件及解包文件夹。`, '删除确认', { confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning' })
+    } catch { return }
+    await deletePackage(item.id, check.confirmation_token)
+    ElMessage.success('权重包已删除')
+    if (items.value.length === 1 && page.value > 1) page.value -= 1
+    await fetchList()
+  } catch { /* API interceptor displays validation or deletion failures. */ } finally { busyId.value = undefined; busyAction.value = undefined }
 }
 onMounted(() => { loadProjects(); fetchList() })
 </script>

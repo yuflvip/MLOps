@@ -282,7 +282,6 @@
       :exp-id="exp.id"
       :artifact="hisiExportArtifact"
       :model-architecture="project?.model_architecture"
-      :image-size="project?.imgsz"
       :exp-root="exp.resolved_path"
       @submitted="handleConversionSubmitted"
     />
