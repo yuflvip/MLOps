@@ -13,6 +13,7 @@ export interface WeightPackage {
   platform: string; runtime: string; model_framework: string; model_size: string | null;
   ftp_uploaded: boolean; ftp_path: string | null; ftp_uploaded_at: string | null;
   created_at: string; size_bytes: number; local_path: string; unpacked_path: string;
+  model_md5: string | null;
   sha256: string; upload_status: string; upload_error: string | null
 }
 export interface PackageFilters { page?: number; page_size?: number; keyword?: string; platform?: string; uploaded?: boolean; model_type?: string; project_id?: number; upload_status?: string }

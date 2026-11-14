@@ -20,28 +20,42 @@
   </el-form>
   <el-table :data="items" v-loading="loading" stripe>
     <el-table-column label="序号" width="75"><template #default="{ $index }">{{ (page - 1) * pageSize + $index + 1 }}</template></el-table-column>
-    <el-table-column prop="project_key" label="模型族标识" min-width="190" show-overflow-tooltip />
-    <el-table-column prop="package_name" label="包名称" min-width="350" show-overflow-tooltip />
-    <el-table-column prop="exp_name" label="实验名称" min-width="210" show-overflow-tooltip />
+    <el-table-column label="包名称 / 模型族" min-width="280" show-overflow-tooltip>
+      <template #default="{ row }">
+        <div class="package-name">{{ row.package_name }}</div>
+        <div class="package-family">{{ row.project_key }}</div>
+      </template>
+    </el-table-column>
+    <el-table-column label="模型族名称" min-width="160" show-overflow-tooltip>
+      <template #default="{ row }">{{ projectNames.get(row.project_id) || '-' }}</template>
+    </el-table-column>
+    <el-table-column label="实验名称" min-width="190" show-overflow-tooltip>
+      <template #default="{ row }">
+        <RouterLink class="experiment-link" :to="{ name: 'ExpDetail', params: { id: row.exp_id }, query: { from: 'weight-packages' } }">{{ row.exp_name }}</RouterLink>
+      </template>
+    </el-table-column>
     <el-table-column prop="platform" label="端侧平台" width="100" />
-    <el-table-column prop="runtime" label="运行时" width="115" />
-    <el-table-column prop="model_framework" label="模型框架" width="135" />
-    <el-table-column prop="model_size" label="模型尺寸" width="120" />
-    <el-table-column label="包大小" width="115"><template #default="{ row }">{{ formatBytes(row.size_bytes) }}</template></el-table-column>
-
-    <el-table-column prop="ftp_path" label="FTP文件路径" min-width="260" show-overflow-tooltip />
-    <el-table-column label="训练结束时间" width="175"><template #default="{ row }">{{ formatTime(row.training_finished_at) }}</template></el-table-column>
-    <el-table-column label="模型打包时间" width="175"><template #default="{ row }">{{ formatTime(row.created_at) }}</template></el-table-column>
-    <el-table-column label="FTP 状态" width="175"><template #default="{ row }"><el-tag :type="row.upload_status === 'failed' ? 'danger' : row.ftp_uploaded ? 'success' : 'info'">{{ uploadLabel(row as WeightPackage) }}</el-tag></template></el-table-column>
-    <el-table-column prop="upload_error" label="上传错误" min-width="200" show-overflow-tooltip />
-    <el-table-column prop="local_path" label="本地路径" min-width="260" show-overflow-tooltip />
-    <el-table-column label="操作" width="340" fixed="right"><template #default="{ row }">
-      <el-button link type="primary" @click="repackage(row as WeightPackage)">重新打包</el-button>
-      <el-button link type="primary" @click="downloadPackage(row as WeightPackage)">下载</el-button>
-      <el-button link type="primary" :loading="busyId === row.id && busyAction === 'upload'" :disabled="busyId !== undefined" @click="upload(row as WeightPackage)">上传FTP</el-button>
-      <el-button link type="danger" :loading="busyId === row.id && busyAction === 'delete'" :disabled="busyId !== undefined" @click="removePackage(row as WeightPackage)">删除</el-button>
+    <el-table-column label="包大小" width="110"><template #default="{ row }">{{ formatBytes(row.size_bytes) }}</template></el-table-column>
+    <el-table-column label="打包时间" width="175"><template #default="{ row }">{{ formatTime(row.created_at) }}</template></el-table-column>
+    <el-table-column label="FTP 状态" width="165"><template #default="{ row }"><el-tag :type="row.upload_status === 'failed' ? 'danger' : row.ftp_uploaded ? 'success' : 'info'">{{ uploadLabel(row as WeightPackage) }}</el-tag></template></el-table-column>
+    <el-table-column label="操作" width="180" fixed="right"><template #default="{ row }">
+      <div class="package-actions">
+        <el-button link type="primary" @click="showDetails(row as WeightPackage)">详情</el-button>
+        <el-button link type="primary" @click="downloadPackage(row as WeightPackage)">下载</el-button>
+        <el-dropdown trigger="click" :disabled="busyId !== undefined">
+          <el-button link type="primary" :loading="busyId === row.id" :disabled="busyId !== undefined">更多</el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item @click="repackage(row as WeightPackage)">重新打包</el-dropdown-item>
+              <el-dropdown-item @click="upload(row as WeightPackage)">上传FTP</el-dropdown-item>
+              <el-dropdown-item divided @click="removePackage(row as WeightPackage)"><span class="delete-action">删除</span></el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </div>
     </template></el-table-column>
   </el-table>
+  <WeightPackageDetailDrawer v-model="detailVisible" :item="detailItem" />
   <WeightPackageDrawer v-if="repackItem" v-model="repackVisible" :exp-id="repackItem.exp_id" :source-file="repackItem.source_file" :initial-platform="repackItem.platform as PackagePlatform" :initial-runtime="repackItem.runtime" :initial-package-name="repackItem.package_name" @saved="fetchList" />
   <el-pagination v-model:current-page="page" v-model:page-size="pageSize" :total="total" :page-sizes="[10,20,50,100]" layout="total, sizes, prev, pager, next" @current-change="fetchList" @size-change="search" class="pagination" />
 </template>
@@ -50,14 +64,19 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
 import PageHeader from '@/shared/components/PageHeader.vue'
+import WeightPackageDetailDrawer from './WeightPackageDetailDrawer.vue'
 import WeightPackageDrawer from './WeightPackageDrawer.vue'
 import { getProjectList, type ProjectItem } from '@/shared/api/modules/projects'
 import { formatTime, formatBytes } from '@/shared/utils/format'
 import { packagePlatforms, listPackages, uploadPackage, downloadPackage, checkPackageDeletion, deletePackage, type WeightPackage, type PackagePlatform } from '@/shared/api/modules/weightPackages'
 const items = ref<WeightPackage[]>([])
+const detailVisible = ref(false)
+const detailItem = ref<WeightPackage>()
+function showDetails(item: WeightPackage) { detailItem.value = item; detailVisible.value = true }
 const keyword = ref(''); const platform = ref(''); const uploadStatus = ref('')
 const modelType = ref(''); const projectId = ref<number>()
 const projects = ref<ProjectItem[]>([])
+const projectNames = computed(() => new Map(projects.value.map(project => [project.id, project.name])))
 const repackVisible = ref(false); const repackItem = ref<WeightPackage>()
 const filteredProjects = computed(() => projects.value.filter(project => !modelType.value || project.model_type === modelType.value))
 watch(filteredProjects, options => {
@@ -77,13 +96,16 @@ async function loadProjects() {
 function repackage(item: WeightPackage) { repackItem.value = item; repackVisible.value = true }
 const page = ref(1); const pageSize = ref(20); const total = ref(0)
 const loading = ref(false); const busyId = ref<number>()
-const busyAction = ref<'upload' | 'delete'>()
 let requestId = 0
 async function fetchList() {
   const current = ++requestId; loading.value = true
   try {
     const data = await listPackages({ page: page.value, page_size: pageSize.value, keyword: keyword.value.trim() || undefined, platform: platform.value || undefined, model_type: modelType.value || undefined, project_id: projectId.value, upload_status: uploadStatus.value || undefined })
-    if (current === requestId) { items.value = data.items; total.value = data.total }
+    if (current === requestId) {
+      items.value = data.items; total.value = data.total
+      const updated = data.items.find(item => item.id === detailItem.value?.id)
+      if (updated) detailItem.value = updated
+    }
   } finally { if (current === requestId) loading.value = false }
 }
 function search() { page.value = 1; fetchList() }
@@ -103,7 +125,6 @@ async function upload(item: WeightPackage) {
     )
   } catch { return }
   busyId.value = item.id
-  busyAction.value = 'upload'
   try {
     try { await uploadPackage(item.id, overwrite) } catch (error) {
       if (!axios.isAxiosError(error) || error.response?.status !== 409 || !String(error.response.data?.message).includes('FTP已存在同名')) throw error
@@ -111,11 +132,10 @@ async function upload(item: WeightPackage) {
       await uploadPackage(item.id, true)
     }
     ElMessage.success('FTP上传完成')
-  } catch { /* API interceptor displays real failures, not overwrite confirmation. */ } finally { busyId.value = undefined; busyAction.value = undefined; await fetchList() }
+  } catch { /* API interceptor displays real failures, not overwrite confirmation. */ } finally { busyId.value = undefined; await fetchList() }
 }
 async function removePackage(item: WeightPackage) {
   busyId.value = item.id
-  busyAction.value = 'delete'
   try {
     const check = await checkPackageDeletion(item.id)
     if (!check.allowed || !check.confirmation_token) {
@@ -127,10 +147,20 @@ async function removePackage(item: WeightPackage) {
     } catch { return }
     await deletePackage(item.id, check.confirmation_token)
     ElMessage.success('权重包已删除')
+    if (detailItem.value?.id === item.id) { detailVisible.value = false; detailItem.value = undefined }
     if (items.value.length === 1 && page.value > 1) page.value -= 1
     await fetchList()
-  } catch { /* API interceptor displays validation or deletion failures. */ } finally { busyId.value = undefined; busyAction.value = undefined }
+  } catch { /* API interceptor displays validation or deletion failures. */ } finally { busyId.value = undefined }
 }
 onMounted(() => { loadProjects(); fetchList() })
 </script>
-<style scoped>.pagination { margin-top: 20px; justify-content: flex-end; }</style>
+<style scoped>
+.pagination { margin-top: 20px; justify-content: flex-end; }
+.package-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.package-family { font-size: 12px; color: var(--el-text-color-secondary); }
+.experiment-link { color: var(--el-color-primary); text-decoration: none; }
+.experiment-link:hover { text-decoration: underline; }
+.package-actions { display: flex; align-items: center; gap: 12px; }
+.package-actions .el-button + .el-button { margin-left: 0; }
+.delete-action { color: var(--el-color-danger); }
+</style>

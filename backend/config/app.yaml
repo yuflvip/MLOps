@@ -37,6 +37,18 @@ model_conversion:
   max_concurrency: 3
   log_dir: "./data/conversion-logs"
   converters:
+    onnx_to_rk3588:
+      enabled: true
+      python_path: "/mnt/yolo_tool/envs/rknn-env/bin/python"
+      working_dir: "./scripts/model_conversion/rknn"
+      script_path: "./scripts/model_conversion/rknn/export_rknn.py"
+    onnx_to_novatek692:
+      enabled: true
+      python_path: "/usr/bin/bash"
+      working_dir: "./scripts/model_conversion/novatek"
+      script_path: "./scripts/model_conversion/novatek/export_692_bin.sh"
+      tool_dir: "/mnt/yolo_tool/novatek/release_v04.01.250807.00"
+      docker_image: "ubuntu20p04:202407013"
     hgnet_to_onnx:
       enabled: true
       python_path: "/root/miniconda3/envs/convnext-env/bin/python"

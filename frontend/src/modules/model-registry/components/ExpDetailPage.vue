@@ -2,7 +2,7 @@
   <div class="exp-detail-page">
     <PageHeader :title="exp?.name || '实验详情'" subtitle="训练产物实时读取自实验目录">
       <template #actions>
-        <el-button :icon="ArrowLeft" @click="router.push('/model-registry')">返回</el-button>
+        <el-button :icon="ArrowLeft" @click="router.push(route.query.from === 'weight-packages' ? '/weight-packages' : '/model-registry')">返回</el-button>
         <el-button :icon="Refresh" circle title="刷新产物" @click="loadPage" />
       </template>
     </PageHeader>
@@ -70,15 +70,18 @@
                 </el-button>
                 <el-dropdown
                   v-if="isOnnxArtifact(row as ExpModelArtifactItem)"
-                  split-button
-                  type="primary"
-                  size="small"
-                  @click="handlePlatformConversion('hisi3403', row as ExpModelArtifactItem)"
+                  trigger="hover"
+                  :show-timeout="100"
+                  size="large"
+                  popper-class="model-export-dropdown"
                   @command="handlePlatformConversion($event, row as ExpModelArtifactItem)"
                 >
-                  导出海思3403
+                  <el-button type="primary" size="small">
+                    导出模型<el-icon class="export-arrow"><ArrowDown /></el-icon>
+                  </el-button>
                   <template #dropdown>
                     <el-dropdown-menu>
+                      <el-dropdown-item command="hisi3403">海思3403</el-dropdown-item>
                       <el-dropdown-item command="novatek692">联咏692</el-dropdown-item>
                       <el-dropdown-item command="rk3588">RK3588</el-dropdown-item>
                     </el-dropdown-menu>
@@ -151,7 +154,7 @@
           <el-table-column label="操作" width="170" fixed="right">
             <template #default="{ row }">
               <el-button
-                v-if="['onnx_to_hisi3403', 'onnx_to_hisi3403_ascend_nnn'].includes(row.converter_code)"
+                v-if="['onnx_to_hisi3403', 'onnx_to_hisi3403_ascend_nnn', 'onnx_to_novatek692', 'onnx_to_rk3588'].includes(row.converter_code)"
                 link
                 type="primary"
                 size="small"
@@ -240,7 +243,7 @@
 
     <el-dialog
       v-model="logVisible"
-      title="海思3403转换日志"
+      title="模型转换日志"
       width="min(1120px, 92vw)"
       top="5vh"
       destroy-on-close
@@ -248,7 +251,7 @@
     >
       <template #header>
         <div class="log-dialog-header">
-          <span>海思3403转换日志</span>
+          <span>模型转换日志</span>
           <el-button size="small" :loading="logLoading" @click="refreshConversionLog">
             刷新
           </el-button>
@@ -276,6 +279,23 @@
       @submitted="handleConversionSubmitted"
     />
     <WeightPackageDrawer v-if="exp" v-model="packageVisible" :exp-id="exp.id" :source-file="packageSource" />
+    <Rknn3588ExportDrawer
+      v-if="exp"
+      v-model="rknnExportVisible"
+      :exp-id="exp.id"
+      :artifact="rknnExportArtifact"
+      :model-family="project?.project"
+      :model-architecture="project?.model_architecture"
+      @submitted="handleConversionSubmitted"
+    />
+    <Novatek692ExportDrawer
+      v-if="exp"
+      v-model="novatekExportVisible"
+      :exp-id="exp.id"
+      :artifact="novatekExportArtifact"
+      :model-family="project?.project"
+      @submitted="handleConversionSubmitted"
+    />
     <Hisi3403ExportDrawer
       v-if="exp"
       v-model="hisiExportVisible"
@@ -290,13 +310,15 @@
 
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Refresh } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowLeft, Refresh } from '@element-plus/icons-vue'
 import PageHeader from '@/shared/components/PageHeader.vue'
 import EmptyState from '@/shared/components/EmptyState.vue'
 import OnnxExportDrawer from './OnnxExportDrawer.vue'
 import WeightPackageDrawer from '@/modules/weight-package/components/WeightPackageDrawer.vue'
+import Rknn3588ExportDrawer from './Rknn3588ExportDrawer.vue'
+import Novatek692ExportDrawer from './Novatek692ExportDrawer.vue'
 import Hisi3403ExportDrawer from './Hisi3403ExportDrawer.vue'
 import { getProjectDetail, type ProjectItem } from '@/shared/api/modules/projects'
 import {
@@ -318,6 +340,7 @@ import { formatBytes, formatTime } from '@/shared/utils/format'
 
 const props = defineProps<{ id: string }>()
 const router = useRouter()
+const route = useRoute()
 const exp = ref<ExpItem>()
 const project = ref<ProjectItem>()
 const artifacts = ref<ExpArtifactItem[]>([])
@@ -330,6 +353,10 @@ const packageSource = ref('')
 function openPackage(artifact: ExpModelArtifactItem) { packageSource.value = artifact.relative_path; packageVisible.value = true }
 const exportVisible = ref(false)
 const exportArtifact = ref<ExpArtifactItem>()
+const rknnExportVisible = ref(false)
+const rknnExportArtifact = ref<ExpModelArtifactItem>()
+const novatekExportVisible = ref(false)
+const novatekExportArtifact = ref<ExpModelArtifactItem>()
 const hisiExportVisible = ref(false)
 const hisiExportArtifact = ref<ExpModelArtifactItem>()
 const previewVisible = ref(false)
@@ -402,6 +429,16 @@ async function downloadModel(artifact: ExpModelArtifactItem) {
 }
 
 function handlePlatformConversion(command: string, artifact: ExpModelArtifactItem) {
+  if (command === 'rk3588') {
+    rknnExportArtifact.value = artifact
+    rknnExportVisible.value = true
+    return
+  }
+  if (command === 'novatek692') {
+    novatekExportArtifact.value = artifact
+    novatekExportVisible.value = true
+    return
+  }
   if (command === 'hisi3403') {
     hisiExportArtifact.value = artifact
     hisiExportVisible.value = true
@@ -472,6 +509,8 @@ async function handleConversionSubmitted() {
 }
 
 function conversionTypeLabel(converterCode: string) {
+  if (converterCode === 'onnx_to_rk3588') return 'ONNX → RK3588'
+  if (converterCode === 'onnx_to_novatek692') return 'ONNX → 联咏692'
   if (converterCode === 'hgnet_to_onnx') return 'HGNet → ONNX'
   if (converterCode === 'yolo_to_onnx') return 'YOLO → ONNX'
   if (converterCode === 'onnx_to_hisi3403') return 'ONNX → 海思 SVP_NNN'
@@ -481,6 +520,12 @@ function conversionTypeLabel(converterCode: string) {
 
 function conversionParamsLabel(item: ModelConversionItem) {
   const params = item.params
+  if (item.converter_code === 'onnx_to_rk3588') {
+    return `${params.precision?.toUpperCase()} / ${params.profile === 'yolov8' ? 'YOLOv8 九输出' : '原始输出'} / ${params.color_order?.toUpperCase()} / ${params.quantization_dataset_name || '无需量化数据'}`
+  }
+  if (item.converter_code === 'onnx_to_novatek692') {
+    return `${params.model_family || '-'} / chip ${params.chip} / op-mode ${params.op_mode} / VLC ${params.vlc_en}`
+  }
   if (item.converter_code === 'onnx_to_hisi3403') {
     return `${params.quantization_dataset_name || '-'} / ${params.soc_version || '-'} / 量化模式 ${params.quant_mode || '-'}`
   }
@@ -640,6 +685,9 @@ onBeforeUnmount(() => {
 .path-text { color: var(--txt2); font-size: 12px; }
 .hash-text { font-size: 12px; color: var(--txt2); }
 .model-actions { display: flex; align-items: center; gap: 8px; }
+.export-arrow { margin-left: 6px; }
+:global(.model-export-dropdown .el-dropdown-menu) { min-width: 180px; padding: 8px 0; }
+:global(.model-export-dropdown .el-dropdown-menu__item) { min-height: 44px; padding: 0 22px; font-size: 16px; }
 .preview-body { min-height: 240px; }
 .image-preview { width: 100%; height: min(68vh, 760px); background: #071127; }
 :deep(.image-preview img) { max-width: 100%; max-height: 100%; }

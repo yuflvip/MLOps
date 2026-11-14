@@ -104,6 +104,22 @@ export interface ModelConversionItem {
   output_file: string
   status: ModelConversionStatus
   params: {
+    profile?: 'generic' | 'yolov8'
+    precision?: 'fp16' | 'int8' | 'hybrid'
+    mean?: number[]
+    std?: number[]
+    color_order?: 'rgb' | 'bgr'
+    resize_mode?: 'resize' | 'letterbox'
+    max_samples?: number
+    model_family?: string
+    quant_dir?: string
+    chip?: number
+    op_mode?: number
+    bit_mode?: number
+    quan_scheme?: number
+    stripe_perfmode?: number
+    vlc_en?: number
+    use_onnx?: boolean
     device?: string
     imgsz?: string
     opset?: number
@@ -191,7 +207,43 @@ export interface Hisi3403AscendNnnConversionCreatePayload {
   }
 }
 
+export interface Novatek692ConversionCreatePayload {
+  converter_code: 'onnx_to_novatek692'
+  source_file: string
+  output_file: string
+  params: {
+    chip: number
+    op_mode: number
+    bit_mode: number
+    quan_scheme: number
+    stripe_perfmode: number
+    vlc_en: number
+    use_onnx: boolean
+    overwrite: boolean
+  }
+}
+
+export interface RknnConversionCreatePayload {
+  converter_code: 'onnx_to_rk3588'
+  source_file: string
+  output_file: string
+  params: {
+    profile: 'generic' | 'yolov8'
+    precision: 'fp16' | 'int8' | 'hybrid'
+    input_shape: string
+    mean: number[]
+    std: number[]
+    color_order: 'rgb' | 'bgr'
+    resize_mode: 'resize' | 'letterbox'
+    max_samples: number
+    quantization_dataset_id?: number
+    overwrite: boolean
+  }
+}
+
 export type ModelConversionCreatePayload =
+  | RknnConversionCreatePayload
+  | Novatek692ConversionCreatePayload
   | OnnxConversionCreatePayload
   | Hisi3403ConversionCreatePayload
   | Hisi3403AscendNnnConversionCreatePayload

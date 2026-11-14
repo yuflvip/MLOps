@@ -67,6 +67,8 @@ class ModelConverterRuntimeSettings(BaseModel):
     python_path: str = ""
     working_dir: str = ""
     script_path: str = ""
+    tool_dir: str = "/mnt/yolo_tool/novatek/release_v04.01.250807.00"
+    docker_image: str = "ubuntu20p04:202407013"
 
 
 class ModelConversionSettings(BaseModel):

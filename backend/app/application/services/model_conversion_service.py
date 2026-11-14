@@ -1,4 +1,5 @@
 import json
+import math
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,6 +21,14 @@ from app.infrastructure.repositories import (
 
 
 CONVERTER_METADATA = {
+    "onnx_to_rk3588": {
+        "source_formats": {"onnx"}, "target_platform": "rk3588",
+        "target_format": "rknn", "architectures": None,
+    },
+    "onnx_to_novatek692": {
+        "source_formats": {"onnx"}, "target_platform": "novatek692",
+        "target_format": "bin", "architectures": None,
+    },
     "hgnet_to_onnx": {
         "source_formats": {"pt", "pth"},
         "target_platform": "onnx",
@@ -87,6 +96,7 @@ class ModelConversionService:
         quantization_dataset_repository: QuantizationDatasetRepository,
         settings: ModelConversionSettings,
         scheduler,
+        quantization_storage_root: Path | None = None,
     ) -> None:
         self._conversion_repository = conversion_repository
         self._exp_repository = exp_repository
@@ -94,6 +104,7 @@ class ModelConversionService:
         self._quantization_dataset_repository = quantization_dataset_repository
         self._settings = settings
         self._scheduler = scheduler
+        self._quantization_storage_root = quantization_storage_root
 
     def create_conversion(
         self,
@@ -146,7 +157,11 @@ class ModelConversionService:
             raise ExpValidationError(
                 "Output file must use the %s extension" % expected_suffix
             )
-        if converter_code == "hgnet_to_onnx":
+        if converter_code == "onnx_to_rk3588":
+            normalized_params = self._validate_rknn_params(params)
+        elif converter_code == "onnx_to_novatek692":
+            normalized_params = self._validate_novatek_params(params, project)
+        elif converter_code == "hgnet_to_onnx":
             normalized_params = self._validate_hgnet_params(params)
         elif converter_code == "yolo_to_onnx":
             normalized_params = self._validate_yolo_params(params)
@@ -202,6 +217,101 @@ class ModelConversionService:
                 "Model conversion '%s' was not found" % conversion_id
             )
         return serialize_model_conversion(item)
+
+    def _validate_rknn_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        allowed = {"precision", "profile", "input_shape", "mean", "std", "color_order", "resize_mode",
+                   "max_samples", "quantization_dataset_id", "overwrite"}
+        if set(params) - allowed:
+            raise ExpValidationError("Unsupported conversion parameters: %s" %
+                                     ", ".join(sorted(set(params) - allowed)))
+        result = {}
+        for key, default, choices in (
+            ("profile", "generic", ("generic", "yolov8")),
+            ("precision", "fp16", ("fp16", "int8", "hybrid")),
+            ("color_order", "rgb", ("rgb", "bgr")),
+            ("resize_mode", "resize", ("resize", "letterbox")),
+        ):
+            value = params.get(key, default)
+            if value not in choices:
+                raise ExpValidationError("Invalid conversion parameter: %s" % key)
+            result[key] = value
+        for key, default in (("mean", [0, 0, 0]), ("std", [1, 1, 1])):
+            values = params.get(key, default)
+            if (not isinstance(values, list) or len(values) != 3 or
+                any(type(x) not in (int, float) or not math.isfinite(x) or
+                    (key == "std" and x <= 0) for x in values)):
+                raise ExpValidationError("%s 必须是三个有限数值，std 必须大于 0" % key)
+            result[key] = values
+        shape = params.get("input_shape", "")
+        if not isinstance(shape, str) or (shape and not re.fullmatch(r"[^:\s]+:1,3,[1-9]\d*,[1-9]\d*", shape)):
+            raise ExpValidationError("input_shape 必须为 name:1,3,h,w")
+        result["input_shape"] = shape
+        count = params.get("max_samples", 200)
+        if type(count) is not int or not 0 <= count <= 10000:
+            raise ExpValidationError("max_samples 必须是 0 到 10000 的整数")
+        result["max_samples"] = count
+        overwrite = params.get("overwrite", False)
+        if not isinstance(overwrite, bool):
+            raise ExpValidationError("overwrite must be a boolean")
+        result["overwrite"] = overwrite
+        if result["precision"] in ("int8", "hybrid"):
+            dataset_id = params.get("quantization_dataset_id")
+            if type(dataset_id) is not int:
+                raise ExpValidationError("INT8 / 混合量化必须选择量化数据集")
+            dataset = self._quantization_dataset_repository.get_by_id(dataset_id)
+            if dataset is None or dataset.image_count <= 0:
+                raise ExpValidationError("量化数据集不存在或没有图片")
+            stored = Path(dataset.storage_path)
+            if self._quantization_storage_root is not None:
+                storage_root = self._quantization_storage_root.resolve()
+                # Dataset directories retain their names when the workspace is relocated.
+                # Rebase only missing records from a root with the same directory name.
+                if not stored.exists() and stored.parent.name == storage_root.name:
+                    stored = storage_root / stored.name
+            directory = (stored / "images").resolve()
+            if (self._quantization_storage_root is None or
+                not directory.is_relative_to(self._quantization_storage_root.resolve()) or
+                not directory.is_dir()):
+                raise ExpValidationError("量化图片目录不存在或超出配置的存储根目录")
+            result.update(quantization_dataset_id=dataset.id,
+                          quantization_dataset_name=dataset.name, dataset_dir=str(directory))
+        return result
+
+    def _validate_novatek_params(self, params: Dict[str, Any], project) -> Dict[str, Any]:
+        defaults = {"chip": 690, "op_mode": 2, "bit_mode": 1,
+                    "quan_scheme": 1, "stripe_perfmode": 1, "vlc_en": 1}
+        allowed = set(defaults) | {"use_onnx", "overwrite"}
+        if set(params) - allowed:
+            raise ExpValidationError("Unsupported conversion parameters: %s" %
+                                     ", ".join(sorted(set(params) - allowed)))
+        family = project.project if project else ""
+        if not family or family in {".", ".."} or "/" in family or "\\" in family:
+            raise ExpValidationError("模型族标识不能用作量化目录")
+        if self._quantization_storage_root is None:
+            raise ExpValidationError("未配置量化数据根目录")
+        root = self._quantization_storage_root.resolve()
+        quant_dir = (root / family).resolve()
+        if not quant_dir.is_relative_to(root) or not quant_dir.is_dir():
+            raise ExpValidationError("模型族量化目录不存在：%s" % quant_dir)
+        for name in ("config/cnn25/gen_config.txt", "config/cnn25/sim_config.txt",
+                     "config/mean_data.txt", "ref_img_list.txt"):
+            path = quant_dir / name
+            if not path.is_file() or path.stat().st_size == 0:
+                raise ExpValidationError("量化配置文件缺失或为空：%s" % path)
+        result = {"model_family": family, "quant_dir": str(quant_dir)}
+        options = {"op_mode": {0, 2, 3}, "bit_mode": {1, 2, 3},
+                   "quan_scheme": {0, 1, 2, 3}, "stripe_perfmode": {0, 1}, "vlc_en": {0, 1}}
+        for key, default in defaults.items():
+            value = params.get(key, default)
+            if type(value) is not int or value < 0 or (key in options and value not in options[key]):
+                raise ExpValidationError("Invalid conversion parameter: %s" % key)
+            result[key] = value
+        for key, default in (("use_onnx", True), ("overwrite", False)):
+            value = params.get(key, default)
+            if not isinstance(value, bool):
+                raise ExpValidationError("%s must be a boolean" % key)
+            result[key] = value
+        return result
 
     def _resolve_path(
         self, root: Path, relative_path: str, *, must_exist: bool

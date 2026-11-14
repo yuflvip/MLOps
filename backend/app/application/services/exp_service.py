@@ -1,6 +1,5 @@
 import csv
 from datetime import datetime, timezone, timedelta
-import hashlib
 from functools import lru_cache
 import json
 import math
@@ -18,6 +17,7 @@ from app.domain.common.exceptions import (
 )
 from app.domain.common.experiment_metadata import read_experiment_metadata, MODEL_FRAMEWORKS
 from app.infrastructure.onnx_metadata import inspect_onnx
+from app.infrastructure.file_hashes import file_md5
 from app.infrastructure.db.models import ExpModel
 from app.infrastructure.repositories import ExpRepository, ProjectRepository
 
@@ -39,11 +39,7 @@ MAX_TEXT_PREVIEW_BYTES = 1024 * 1024
 @lru_cache(maxsize=512)
 def _md5_cached(path: str, size_bytes: int, modified_ns: int) -> str:
     del size_bytes, modified_ns
-    digest = hashlib.md5()
-    with Path(path).open("rb") as file_handle:
-        for chunk in iter(lambda: file_handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+    return file_md5(path)
 
 
 def _serialize_exp(exp: ExpModel) -> Dict[str, Any]:

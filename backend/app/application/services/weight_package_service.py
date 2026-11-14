@@ -20,6 +20,7 @@ from app.domain.common.packaging import ProjectPackagingConfig
 from app.domain.common.experiment_metadata import read_experiment_metadata
 from app.infrastructure.db.models import ExpModel, ProjectModel, ModelConversionModel, WeightPackageModel
 from app.infrastructure.package_lock import package_lock
+from app.infrastructure.file_hashes import file_md5
 from app.infrastructure.onnx_metadata import inspect_onnx
 from app.application.services.exp_service import ExpService
 
@@ -43,6 +44,7 @@ def safe_name(value):
 
 def serialize(item, storage_root=None):
     result = {key: getattr(item, key) for key in ("id", "package_name", "project_id", "exp_id", "project_key", "exp_name", "platform", "runtime", "model_framework", "model_size", "model_type", "training_date", "source_file", "local_path", "unpacked_path", "size_bytes", "sha256", "ftp_uploaded", "ftp_path", "upload_status", "upload_error")}
+    result["model_md5"] = json.loads(item.snapshot_json or "{}").get("model_md5")
     for key in ("created_at", "updated_at", "ftp_uploaded_at", "training_finished_at"):
         value = getattr(item, key)
         result[key] = value.replace(tzinfo=timezone.utc).isoformat() if value and value.tzinfo is None else value.isoformat() if value else None
@@ -201,6 +203,7 @@ class WeightPackageService:
                     "platform": platform, "runtime": runtime, "model_framework": framework, "model_size": size or "%d×%d" % (width, height),
                     "model_type": project.model_type, "training_finished_at": finished.isoformat(),
                     "training_date": date, "source_file": source_file, "package_name": bundle + ".tgz",
+                    "model_filename": model_filename,
                     "default_package_name": default_package_name, "config": config.model_dump(), "script": script, "deploy_dir": self.settings.deploy_dir,
                     "sources": {name: {"size": path.stat().st_size, "mtime_ns": path.stat().st_mtime_ns} for name, path in files.items()}}
         token = hashlib.sha256(json.dumps(snapshot, sort_keys=True, ensure_ascii=True).encode()).hexdigest()
@@ -252,6 +255,8 @@ class WeightPackageService:
                     return info
                 with tarfile.open(temporary_archive, "w:gz") as tar:
                     tar.add(content, arcname=unpacked.name, filter=permissions)
+                # Hash the staged model actually included in this archive, not the live source.
+                snapshot["model_md5"] = file_md5(content / snapshot["model_filename"])
                 snapshot["source_sha256"] = {name: sha256(content / name) for name in files}
                 digest, archive_size = sha256(temporary_archive), temporary_archive.stat().st_size
                 old_dir, old_archive = stage / "previous-directory", stage / "previous.tgz"

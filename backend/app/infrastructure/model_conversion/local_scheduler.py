@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import shlex
 import shutil
+import tempfile
 from typing import Any
 
 from sqlalchemy import select
@@ -90,6 +91,8 @@ class LocalModelConversionScheduler:
             session = self._session_factory()
             process_output_path: Path | None = None
             process_source_path: Path | None = None
+            novatek_work = None
+            rknn_work = None
             try:
                 item = session.get(ModelConversionModel, conversion_id)
                 if item is None or item.status != "queued":
@@ -129,7 +132,14 @@ class LocalModelConversionScheduler:
                         shutil.copy2(source_path, process_source_path)
                     command_source_path = process_source_path
 
+                if item.converter_code == "onnx_to_novatek692":
+                    novatek_work = tempfile.TemporaryDirectory(prefix="mlops-692-")
+                    command_source_path = Path(novatek_work.name) / "best.onnx"
+                    shutil.copy2(source_path, command_source_path)
+
                 if item.converter_code in {
+                    "onnx_to_rk3588",
+                    "onnx_to_novatek692",
                     "onnx_to_hisi3403",
                     "onnx_to_hisi3403_ascend_nnn",
                 }:
@@ -138,6 +148,10 @@ class LocalModelConversionScheduler:
                         if item.converter_code == "onnx_to_hisi3403"
                         else "haisi3403-ascend-nnn"
                     )
+                    if item.converter_code == "onnx_to_novatek692":
+                        log_suffix = "novatek692-%s" % item.id
+                    if item.converter_code == "onnx_to_rk3588":
+                        log_suffix = "rk3588-%s" % item.id
                     log_path = output_path.with_name(
                         "%s.onnx-%s.log" % (output_path.stem, log_suffix)
                     )
@@ -178,15 +192,25 @@ class LocalModelConversionScheduler:
                     )
                     log_handle.write(header.encode("utf-8"))
                     log_handle.flush()
+                    working_dir = runtime.working_dir
+                    if item.converter_code == "onnx_to_rk3588":
+                        rknn_work = tempfile.TemporaryDirectory(prefix="mlops-rknn-")
+                        working_dir = rknn_work.name
                     process = await asyncio.create_subprocess_exec(
                         *command,
-                        cwd=runtime.working_dir,
+                        cwd=working_dir,
                         stdout=log_handle,
                         stderr=asyncio.subprocess.STDOUT,
                     )
                     self._processes[item.id] = process
                     return_code = await process.wait()
                     self._processes.pop(item.id, None)
+
+                if return_code == 0 and novatek_work is not None:
+                    compiled = Path(novatek_work.name) / "novaic_output/sdk/nvt_model.bin"
+                    if not compiled.is_file() or compiled.stat().st_size == 0:
+                        raise RuntimeError("编译器未生成非空 sdk/nvt_model.bin，请查看转换日志")
+                    shutil.copy2(compiled, process_output_path)
 
                 session.refresh(item)
                 item.finished_at = datetime.now(timezone.utc)
@@ -195,7 +219,8 @@ class LocalModelConversionScheduler:
                     process_output_path.unlink(missing_ok=True)
                     item.status = "succeeded"
                     item.result_files_json = "[]"
-                elif return_code == 0 and process_output_path.is_file():
+                elif (return_code == 0 and process_output_path.is_file()
+                      and process_output_path.stat().st_size > 0):
                     process_output_path.replace(output_path)
                     item.status = "succeeded"
                     item.result_files_json = json.dumps(
@@ -214,6 +239,10 @@ class LocalModelConversionScheduler:
                     process_output_path.unlink(missing_ok=True)
                 self._mark_failed(conversion_id, str(exc))
             finally:
+                if rknn_work is not None:
+                    rknn_work.cleanup()
+                if novatek_work is not None:
+                    novatek_work.cleanup()
                 if process_source_path is not None:
                     process_source_path.unlink(missing_ok=True)
                 self._processes.pop(conversion_id, None)
@@ -228,6 +257,28 @@ class LocalModelConversionScheduler:
         output_path: Path,
         params: dict[str, Any],
     ) -> list[str]:
+        if converter_code == "onnx_to_rk3588":
+            command = [runtime.python_path, "-u", runtime.script_path,
+                       "--onnx", str(source_path), "--output", str(output_path),
+                       "--target-platform", "rk3588"]
+            command.extend(["--profile", params.get("profile", "generic")])
+            for key in ("precision", "color_order", "resize_mode", "max_samples"):
+                command.extend(["--" + key.replace("_", "-"), str(params[key])])
+            for key in ("mean", "std"):
+                command.append("--%s=%s" % (key, ",".join(str(x) for x in params[key])))
+            for key in ("input_shape", "dataset_dir"):
+                if params.get(key):
+                    command.extend(["--" + key.replace("_", "-"), params[key]])
+            return command
+        if converter_code == "onnx_to_novatek692":
+            command = [runtime.python_path, runtime.script_path,
+                       "--exp-dir", str(source_path.parent), "--model", source_path.name,
+                       "--quant-dir", params["quant_dir"],
+                       "--tool-dir", runtime.tool_dir, "--image", runtime.docker_image]
+            for key in ("chip", "op_mode", "bit_mode", "quan_scheme", "stripe_perfmode", "vlc_en"):
+                command.extend(["--" + key.replace("_", "-"), str(params[key])])
+            command.extend(["--use-onnx", str(params["use_onnx"]).lower()])
+            return command
         if converter_code == "onnx_to_hisi3403":
             return self._build_hisi3403_command(
                 runtime=runtime,
